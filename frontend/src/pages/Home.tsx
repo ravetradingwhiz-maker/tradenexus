@@ -229,7 +229,7 @@ const Home = () => {
                                     onClick={tradeNow}
                                     className='mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-base font-semibold text-black transition-opacity hover:opacity-90'
                                 >
-                                    <Zap size={17} /> Trade now
+                                    <Zap size={17} /> Trade now for Free
                                 </button>
                                 <p className='mt-2 text-center text-[10px] text-white/60'>
                                     One secure Deriv login — no password ever stored.
