@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.env
+.env.local
+*.local
+*.tsbuildinfo
+
+# TypeScript incremental build state
+*.tsbuildinfo

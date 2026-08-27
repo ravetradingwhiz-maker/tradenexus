@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "composite": true,
+        "skipLibCheck": true,
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "types": ["node"],
+        // `composite` forces an emit, so send it somewhere disposable rather
+        // than dropping vite.config.js/.d.ts next to the source.
+        "outDir": "./node_modules/.tmp"
+    },
+    "include": ["vite.config.ts"]
+}

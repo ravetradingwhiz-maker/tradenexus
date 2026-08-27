@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   TradeNexus — monochrome theme tokens.
+
+   Values are RGB triplets so Tailwind's `/opacity` modifier works. Dark is the
+   default; `.light` on <html> inverts the whole system. Nothing here carries a
+   hue: the entire product is black, white and the greys between them.
+   --------------------------------------------------------------------------- */
+:root {
+    color-scheme: dark;
+    --ink-900: 0 0 0; /* page */
+    --ink-800: 10 10 10; /* card */
+    --ink-700: 18 18 18; /* raised */
+    --ink-600: 28 28 28; /* input / hover */
+    --ink-500: 40 40 40; /* pressed */
+    --line: 38 38 38;
+    --line-strong: 64 64 64;
+    --fg: 255 255 255;
+    --on-fg: 0 0 0;
+    --mist-100: 245 245 245;
+    --mist-200: 229 229 229;
+    --mist-300: 190 190 190;
+    --mist-400: 150 150 150;
+    --mist-500: 115 115 115;
+    --mist-600: 82 82 82;
+    /* The only hues in the system. P&L is the one place where a glance has to
+       be unambiguous, so profit and loss get real colour; everything else stays
+       black and white. Both are paired with a sign, never colour alone. */
+    --gain: 74 222 128; /* green-400 — on black */
+    --loss: 248 113 113; /* red-400   — on black */
+}
+
+:root.light {
+    color-scheme: light;
+    --ink-900: 255 255 255;
+    --ink-800: 250 250 250;
+    --ink-700: 244 244 244;
+    --ink-600: 235 235 235;
+    --ink-500: 224 224 224;
+    --line: 224 224 224;
+    --line-strong: 168 168 168;
+    --fg: 0 0 0;
+    --on-fg: 255 255 255;
+    --mist-100: 23 23 23;
+    --mist-200: 38 38 38;
+    --mist-300: 64 64 64;
+    --mist-400: 100 100 100;
+    --mist-500: 130 130 130;
+    --mist-600: 163 163 163;
+    --gain: 21 128 61; /* green-700 — on white */
+    --loss: 185 28 28; /* red-700   — on white */
+}
+
+@layer base {
+    html,
+    body {
+        @apply bg-ink-900 text-mist-200 antialiased;
+    }
+
+    body {
+        font-family: theme('fontFamily.sans');
+    }
+
+    /* Smooth in-page jumps for the one-page dashboard's section nav, with room
+       for the sticky header. Respects a reduced-motion preference. */
+    html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 5.5rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
+    ::selection {
+        @apply bg-fg text-on-fg;
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+        @apply bg-ink-800;
+    }
+    ::-webkit-scrollbar-thumb {
+        @apply rounded bg-ink-500;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        @apply bg-line-strong;
+    }
+
+    /* Kill the number-input spinners — stakes are typed, not nudged. */
+    input[type='number']::-webkit-outer-spin-button,
+    input[type='number']::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type='number'] {
+        -moz-appearance: textfield;
+    }
+}
+
+@layer components {
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold
+            transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-fg
+            focus-visible:ring-offset-2 focus-visible:ring-offset-ink-900
+            disabled:cursor-not-allowed disabled:opacity-40;
+    }
+
+    /* Solid: the inverse of the page. Black on white in dark mode, and the
+       reverse in light — the single strongest element on any screen. */
+    .btn-solid {
+        @apply btn bg-fg text-on-fg hover:opacity-90 active:opacity-80;
+    }
+
+    .btn-outline {
+        @apply btn border border-line-strong bg-transparent text-fg hover:border-fg hover:bg-ink-700;
+    }
+
+    .btn-ghost {
+        @apply btn bg-ink-700 text-mist-200 hover:bg-ink-600 hover:text-fg;
+    }
+
+    .btn-sm {
+        @apply gap-1.5 rounded-lg px-3.5 py-2 text-xs;
+    }
+
+    /* ── Surfaces ────────────────────────────────────────────────────────── */
+    .card {
+        @apply rounded-2xl border border-line bg-ink-800 p-5 sm:p-6;
+    }
+
+    .card-flat {
+        @apply rounded-xl border border-line bg-ink-700 p-4;
+    }
+
+    .container-page {
+        @apply mx-auto w-full max-w-[1200px] px-5;
+    }
+
+    /* ── Form controls ───────────────────────────────────────────────────── */
+    .field {
+        @apply w-full rounded-xl border border-line bg-ink-700 px-3.5 py-2.5 text-sm font-semibold
+            text-fg outline-none transition-colors placeholder:font-normal placeholder:text-mist-500
+            focus:border-line-strong disabled:opacity-50;
+    }
+
+    .label {
+        @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-mist-500;
+    }
+
+    /* ── Chips / badges ──────────────────────────────────────────────────── */
+    .chip {
+        @apply inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1
+            text-[10px] font-bold uppercase tracking-[0.12em] text-mist-400;
+    }
+
+    .chip-solid {
+        @apply inline-flex items-center gap-1.5 rounded-full bg-fg px-2.5 py-1 text-[10px]
+            font-bold uppercase tracking-[0.12em] text-on-fg;
+    }
+
+    /* Fine hairline grid used behind hero / section headers. */
+    .grid-lines {
+        background-image:
+            linear-gradient(to right, rgb(var(--line) / 0.55) 1px, transparent 1px),
+            linear-gradient(to bottom, rgb(var(--line) / 0.55) 1px, transparent 1px);
+        background-size: 56px 56px;
+    }
+
+    /* Wordmark treatment — a hairline outline behind solid type. */
+    .wordmark {
+        font-family: theme('fontFamily.display');
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+}

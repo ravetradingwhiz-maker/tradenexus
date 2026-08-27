@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" class="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <!-- Apply the saved theme before paint so there is no flash of the wrong theme. -->
+        <script>
+            (function () {
+                try {
+                    var t = localStorage.getItem('tn_theme');
+                    if (t !== 'light' && t !== 'dark') t = 'dark';
+                    document.documentElement.classList.remove('light', 'dark');
+                    document.documentElement.classList.add(t);
+                } catch (e) {}
+            })();
+        </script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
+
+        <!-- ── Primary SEO ────────────────────────────────────────────────── -->
+        <title>TradeNexus — Master Deriv Options Trading with AI Powered Bots</title>
+        <meta
+            name="description"
+            content="TradeNexus AI Bots trade Deriv options for you — Nexus Bot Basic, Nexus Bot Recovery and Nexus Bot Pro. Rise/Fall, Even/Odd, Over/Under, Matches/Differs, simultaneous Over 2 / Under 7 and bulk trading, with an optional martingale recovery engine and secure Deriv OAuth login. No coding required."
+        />
+        <meta
+            name="keywords"
+            content="TradeNexus, Deriv bot, Deriv trading bot, automated trading, Nexus Bot, binary options bot, volatility index bot, Rise Fall bot, Even Odd bot, Over Under bot, Matches Differs, martingale recovery bot, bulk trading, over 2 under 7"
+        />
+        <meta name="author" content="TradeNexus" />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <meta name="format-detection" content="telephone=no" />
+        <link rel="canonical" href="https://derivbot.app/" />
+
+        <!-- ── Open Graph (Facebook, Telegram, WhatsApp previews) ─────────── -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="TradeNexus" />
+        <meta property="og:locale" content="en_US" />
+        <meta property="og:url" content="https://derivbot.app/" />
+        <meta property="og:title" content="TradeNexus — Master Deriv Options Trading with AI Powered Bots" />
+        <meta
+            property="og:description"
+            content="AI Bots that trade Deriv options for you. Rise/Fall, Even/Odd, Over/Under, Matches/Differs, simultaneous Over 2 / Under 7 and bulk trading — with an optional martingale recovery engine."
+        />
+        <meta property="og:image" content="https://derivbot.app/og-cover.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="TradeNexus — automated Deriv trading bots" />
+
+        <!-- ── Twitter / X ────────────────────────────────────────────────── -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="TradeNexus — Master Deriv Options Trading with AI Powered Bots" />
+        <meta
+            name="twitter:description"
+            content="AI Bots that trade Deriv options for you. Rise/Fall, Even/Odd, Over/Under, Matches/Differs, simultaneous Over 2 / Under 7 and bulk trading."
+        />
+        <meta name="twitter:image" content="https://derivbot.app/og-cover.png" />
+
+        <!-- ── Structured data ────────────────────────────────────────────── -->
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "Organization",
+                        "@id": "https://derivbot.app/#organization",
+                        "name": "TradeNexus",
+                        "url": "https://derivbot.app/",
+                        "logo": "https://derivbot.app/favicon.svg"
+                    },
+                    {
+                        "@type": "WebSite",
+                        "@id": "https://derivbot.app/#website",
+                        "url": "https://derivbot.app/",
+                        "name": "TradeNexus",
+                        "publisher": { "@id": "https://derivbot.app/#organization" },
+                        "inLanguage": "en"
+                    },
+                    {
+                        "@type": "SoftwareApplication",
+                        "name": "TradeNexus",
+                        "applicationCategory": "FinanceApplication",
+                        "operatingSystem": "Web",
+                        "url": "https://derivbot.app/",
+                        "description": "Automated trading bots for Deriv synthetic indices — Nexus Bot Basic, Nexus Bot Recovery and Nexus Bot Pro.",
+                        "offers": {
+                            "@type": "AggregateOffer",
+                            "priceCurrency": "USD",
+                            "lowPrice": "100",
+                            "highPrice": "480",
+                            "offerCount": "3"
+                        }
+                    }
+                ]
+            }
+        </script>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+    </head>
+    <body>
+        <div id="root"></div>
+        <div id="modal_root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>
