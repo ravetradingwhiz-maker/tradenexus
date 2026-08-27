@@ -38,7 +38,7 @@ const AdminMarkup = () => {
               { label: 'Payout', value: `$${data.payout.toFixed(2)}` },
               { label: 'Contracts', value: String(data.contracts) },
               { label: 'Clients', value: String(data.clients) },
-              { label: 'App id', value: data.app_id ?? '—' },
+            //   { label: 'App id', value: data.app_id ?? '—' },
           ]
         : [];
 
