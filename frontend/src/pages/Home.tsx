@@ -20,9 +20,19 @@ import {
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import NexusMark from '@/components/NexusMark';
+import HeroFigure from '@/components/HeroFigure';
 import { useAuth } from '@/context/AuthContext';
 import SITE from '@/config/site';
+
+/** What Nexus AI can do — shown inside the hero panel. */
+const NEXUS_CAN_DO = [
+    'Ten strategies',
+    'Runs 24/7',
+    'Bulk trading',
+    'Martingale recovery',
+    'Adaptive risk engine',
+    'Live tick analysis',
+];
 
 const BOTS = [
     {
@@ -77,16 +87,6 @@ const STRATEGIES = [
     { icon: Target, name: 'Over 8 Sniper', body: 'Patient by design. Waits for the setup, then takes it.' },
     { icon: Zap, name: 'Tick Striker', body: 'Backs the last tick of five to top the lot.' },
     { icon: ArrowUpDown, name: 'Auto Switcher', body: 'Follows the trend and flips the moment it turns.' },
-];
-
-/** Chips on the Nexus AI hero card. Kept to things the product actually does. */
-const NEXUS_FEATURES = [
-    'Ten strategies',
-    'Adaptive risk engine',
-    'Runs 24/7',
-    'Bulk trading',
-    'Martingale recovery',
-    'Live tick analysis',
 ];
 
 const FEATURES = [
@@ -169,7 +169,7 @@ const Home = () => {
             {/* ── Hero ───────────────────────────────────────────────────── */}
             <section className='relative overflow-hidden border-b border-line'>
                 <div className='pointer-events-none absolute inset-0 grid-lines opacity-60' aria-hidden='true' />
-                <div className='container-page relative grid gap-12 py-16 sm:py-24 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center lg:py-28'>
+                <div className='container-page relative grid gap-12 py-16 sm:py-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:py-28'>
                     <div className='animate-fade-up'>
                         <h1 className='wordmark text-4xl leading-[1.05] text-fg sm:text-5xl lg:text-6xl'>
                             Master
@@ -195,44 +195,47 @@ const Home = () => {
                         </div>
                     </div>
 
-                    {/* Nexus AI — the one card that turns a visitor into a trader. */}
-                    <div className='card animate-fade-up !p-7'>
-                        <div className='flex items-start justify-between gap-3'>
-                            <div className='flex items-center gap-3'>
-                                <span className='flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-fg text-on-fg'>
-                                    <NexusMark size={26} />
+                    {/* Nexus AI — everything sits ON the artwork, so the panel
+                        is only ever as tall as the image itself. The scrim is
+                        what keeps the text readable over a busy picture. */}
+                    <div className='animate-fade-up mx-auto w-full max-w-[520px] lg:mx-0 lg:ml-auto'>
+                        <div className='relative overflow-hidden rounded-2xl border border-line'>
+                            <HeroFigure className='aspect-square w-full object-cover' />
+
+                            {/* Top-left badge */}
+                            <div className='absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent p-4 pb-10'>
+                                <span className='rounded-full border border-white/25 bg-black/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white backdrop-blur'>
+                                    AI powered
                                 </span>
-                                <div>
-                                    <p className='wordmark text-2xl leading-tight text-fg'>Nexus AI</p>
-                                    <p className='text-xs text-mist-500'>Your autonomous trading copilot</p>
-                                </div>
+                                <span className='text-[11px] text-white/80'>Your autonomous trading copilot</span>
                             </div>
-                            <span className='chip shrink-0'>AI powered</span>
-                        </div>
 
-                        <p className='mt-6 text-sm leading-relaxed text-mist-300'>
-                            Connect your Deriv account and start trading in under a minute. No setup, no coding, no
-                            subscription to begin.
-                        </p>
+                            {/* Capabilities + the way in, over a scrim */}
+                            <div className='absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/85 to-transparent p-4 pt-20'>
+                                <ul className='grid grid-cols-2 gap-1.5'>
+                                    {NEXUS_CAN_DO.map(c => (
+                                        <li
+                                            key={c}
+                                            className='flex items-center gap-1.5 rounded-md border border-white/15 bg-white/10 px-2.5 py-1.5 text-[11px] font-medium leading-tight text-white backdrop-blur'
+                                        >
+                                            <Check size={11} className='shrink-0' />
+                                            {c}
+                                        </li>
+                                    ))}
+                                </ul>
 
-                        <div className='mt-5 grid grid-cols-2 gap-2'>
-                            {NEXUS_FEATURES.map(f => (
-                                <span
-                                    key={f}
-                                    className='inline-flex items-center gap-2 rounded-lg bg-ink-700 px-3 py-2 text-xs font-medium text-mist-200'
+                                <button
+                                    type='button'
+                                    onClick={tradeNow}
+                                    className='mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-base font-semibold text-black transition-opacity hover:opacity-90'
                                 >
-                                    <Check size={13} className='shrink-0 text-fg' />
-                                    {f}
-                                </span>
-                            ))}
+                                    <Zap size={17} /> Trade now
+                                </button>
+                                <p className='mt-2 text-center text-[10px] text-white/60'>
+                                    One secure Deriv login — no password ever stored.
+                                </p>
+                            </div>
                         </div>
-
-                        <button type='button' onClick={tradeNow} className='btn-solid mt-6 w-full py-3 text-base'>
-                            <Zap size={17} /> Trade now
-                        </button>
-                        <p className='mt-2.5 text-center text-[11px] text-mist-500'>
-                            One secure Deriv login — no password ever stored.
-                        </p>
                     </div>
                 </div>
             </section>

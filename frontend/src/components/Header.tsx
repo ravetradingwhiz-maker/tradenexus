@@ -13,20 +13,6 @@ const Header = () => {
             <div className='container-page flex h-16 items-center justify-between gap-4'>
                 <BrandLogo />
 
-                <nav aria-label='Main' className='hidden items-center gap-7 md:flex'>
-                    <a href='#bots' className='text-sm font-medium text-mist-400 transition-colors hover:text-fg'>
-                        AI Bots
-                    </a>
-                    <a href='#strategies' className='text-sm font-medium text-mist-400 transition-colors hover:text-fg'>
-                        Strategies
-                    </a>
-                    <Link to='/pricing' className='text-sm font-medium text-mist-400 transition-colors hover:text-fg'>
-                        Pricing
-                    </Link>
-                    <a href='#faq' className='text-sm font-medium text-mist-400 transition-colors hover:text-fg'>
-                        FAQ
-                    </a>
-                </nav>
 
                 <div className='flex items-center gap-2'>
                     <ThemeToggle />
