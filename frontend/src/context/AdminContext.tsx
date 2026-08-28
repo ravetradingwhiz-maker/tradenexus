@@ -74,6 +74,13 @@ const clearSuppress = () => {
     }
 };
 
+/**
+ * Clear the exit suppression. Called on a fresh login (the OAuth callback), so
+ * exiting admin mode then logging out and back in — even in the same tab —
+ * re-activates it. A plain reload does NOT clear it, so an exit stays put.
+ */
+export const clearAdminExitSuppression = () => clearSuppress();
+
 export interface SimOutcome {
     won: boolean;
     profit: number;

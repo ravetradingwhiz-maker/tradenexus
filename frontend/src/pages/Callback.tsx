@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOAuthCallback } from '@/hooks/useOAuthCallback';
 import { useAuth } from '@/context/AuthContext';
+import { clearAdminExitSuppression } from '@/context/AdminContext';
 import { OAuthTokenExchangeService } from '@/services/oauth-token-exchange.service';
 import { parseLoginInfoFromUrl, processLegacyLoginInfo } from '@/utils/auth-utils';
 import Spinner from '@/components/Spinner';
@@ -28,6 +29,9 @@ const Callback = () => {
         if (handled.current) return;
 
         const finishSuccess = () => {
+            // A fresh login re-arms admin auto-detect: clear any exit suppression
+            // from earlier this tab so exiting then logging back in re-activates.
+            clearAdminExitSuppression();
             refreshAuthState();
             // A page may stash where to land after login (e.g. a pricing card).
             const dest = sessionStorage.getItem('post_login_redirect') || '/app';

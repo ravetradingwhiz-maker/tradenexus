@@ -75,6 +75,9 @@ const Dashboard = () => {
                             <Tile
                                 tone='gain'
                                 label='Balance'
+                                // Hold a shimmer until the admin balance resolves, so the
+                                // real balance never flashes before the admin figure.
+                                loading={admin.resolving}
                                 value={
                                     shownBalance == null
                                         ? '—'
@@ -132,22 +135,28 @@ const Tile = ({
     sub,
     pnl,
     tone,
+    loading,
 }: {
     label: string;
     value: string;
     sub?: string;
     pnl?: number;
     tone?: 'gain';
+    loading?: boolean;
 }) => (
     <div className='rounded-xl border border-line bg-ink-700 p-3.5'>
         <dt className='label'>{label}</dt>
-        <dd
-            className={`mt-1 truncate font-mono text-sm font-extrabold ${
-                pnl !== undefined ? (pnl >= 0 ? 'text-gain' : 'text-loss') : tone === 'gain' ? 'text-gain' : 'text-fg'
-            }`}
-        >
-            {value}
-        </dd>
+        {loading ? (
+            <dd className='mt-1.5 h-4 w-20 animate-pulse rounded bg-ink-600' aria-label='Loading' />
+        ) : (
+            <dd
+                className={`mt-1 truncate font-mono text-sm font-extrabold ${
+                    pnl !== undefined ? (pnl >= 0 ? 'text-gain' : 'text-loss') : tone === 'gain' ? 'text-gain' : 'text-fg'
+                }`}
+            >
+                {value}
+            </dd>
+        )}
         {sub && <dd className='mt-0.5 text-[11px] text-mist-500'>{sub}</dd>}
     </div>
 );

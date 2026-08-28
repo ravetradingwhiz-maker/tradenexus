@@ -25,26 +25,6 @@ const AccountSwitcher = () => {
     const admin = useAdminOptional();
     const [open, setOpen] = useState(false);
     const boxRef = useRef<HTMLDivElement>(null);
-    const exitClicksRef = useRef(0);
-    const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Triple-click the balance to exit admin mode — everything back to the real
-    // account. A no-op (and normal click-to-open) unless admin mode is on.
-    const handleBalanceClick = (e: React.MouseEvent) => {
-        if (!admin?.active) return;
-        e.stopPropagation();
-        exitClicksRef.current += 1;
-        if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
-        if (exitClicksRef.current >= 3) {
-            exitClicksRef.current = 0;
-            setOpen(false);
-            admin.exit();
-        } else {
-            exitTimerRef.current = setTimeout(() => {
-                exitClicksRef.current = 0;
-            }, 2000);
-        }
-    };
 
     useEffect(() => {
         if (!open) return;
@@ -73,6 +53,9 @@ const AccountSwitcher = () => {
     const row = (loginid: string, currency: string, isDemo: boolean) => {
         const b = balances[loginid];
         const isActive = loginid === activeLoginId;
+        // The admin's real account always shows the fake balance — even while a
+        // different account is being viewed. Demo rows keep Deriv's own balance.
+        const isAdminAcc = !!admin?.adminLoginid && loginid === admin.adminLoginid;
         return (
             <button
                 key={loginid}
@@ -102,8 +85,12 @@ const AccountSwitcher = () => {
                 </span>
 
                 <span className='flex shrink-0 items-center gap-2'>
-                    <span className={`font-mono text-xs font-bold ${b ? 'text-gain' : 'text-mist-400'}`}>
-                        {b ? fmt(b.balance, b.currency) : '—'}
+                    <span className={`font-mono text-xs font-bold ${isAdminAcc || b ? 'text-gain' : 'text-mist-400'}`}>
+                        {isAdminAcc
+                            ? fmt(admin!.fakeBalance, admin!.adminCurrency)
+                            : b
+                              ? fmt(b.balance, b.currency)
+                              : '—'}
                     </span>
                     {isActive && <Check size={14} className='text-fg' />}
                 </span>
@@ -128,25 +115,11 @@ const AccountSwitcher = () => {
                         // so the real balance never flashes before the admin balance.
                         <span className='my-0.5 h-3.5 w-20 animate-pulse rounded bg-ink-600' aria-label='Loading balance' />
                     ) : (
-                        <span
-                            onClick={handleBalanceClick}
-                            className={`font-mono text-xs font-bold ${showBalance == null ? 'text-mist-400' : 'text-gain'}`}
-                        >
+                        <span className={`font-mono text-xs font-bold ${showBalance == null ? 'text-mist-400' : 'text-gain'}`}>
                             {fmt(showBalance, showCurrency)}
                         </span>
                     )}
-                    <span className='mt-0.5 flex items-center gap-1 text-[10px] text-mist-500'>
-                        {active?.loginid ?? 'Account'}
-                        {active && (
-                            <span
-                                className={`rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.1em] ${
-                                    active.is_demo ? 'bg-ink-500 text-mist-300' : 'bg-fg text-on-fg'
-                                }`}
-                            >
-                                {active.is_demo ? 'Demo' : 'Real'}
-                            </span>
-                        )}
-                    </span>
+                    <span className='mt-0.5 block text-[10px] text-mist-500'>{active?.loginid ?? 'Account'}</span>
                 </span>
 
                 <ChevronDown size={14} className={`text-mist-400 transition-transform ${open ? 'rotate-180' : ''}`} />
