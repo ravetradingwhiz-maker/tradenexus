@@ -142,13 +142,16 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const [adminLoginid, setAdminLoginid] = useState<string | null>(null);
     const [fakeBalance, setFakeBalance] = useState(0);
     const [adminCurrency, setAdminCurrency] = useState(currency);
-    // Start gated: the balance stays skeletoned until admin status resolves.
-    const [resolving, setResolving] = useState(true);
-
     const balanceRef = useRef(0);
     balanceRef.current = fakeBalance;
 
-    // Effective: fake-trade mode applies only while on the bound account.
+    // The admin (fake) balance belongs to the REAL account only — demo stays
+    // Deriv's own. The admin's real account is the first non-demo one; admin mode
+    // binds to it, so switching to demo shows Deriv's demo balance untouched.
+    const adminAccountId = useMemo(() => accounts.find(a => !a.is_demo)?.loginid ?? null, [accounts]);
+    const activeIsAdminAccount = !!adminAccountId && activeLoginId === adminAccountId;
+
+    // Effective: fake-trade mode applies only while the admin's real account is active.
     const effectiveActive = adminActivated && !!adminLoginid && adminLoginid === activeLoginId;
     const effectiveActiveRef = useRef(effectiveActive);
     effectiveActiveRef.current = effectiveActive;
@@ -271,19 +274,21 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }, [stableOnVis]);
 
     // Activate admin mode from the shared quantum-vault balance (no typed figure).
+    // Always bound to the admin's REAL account, whatever is active right now.
     const autoActivate = useCallback(
         (startBalance: number) => {
+            if (!adminAccountId) return;
             resetEngine();
             setAdminActivated(true);
-            setAdminLoginid(activeLoginId);
+            setAdminLoginid(adminAccountId);
             setFakeBalance(startBalance);
             balanceRef.current = startBalance;
             setAdminCurrency(currency);
-            persist({ active: true, loginid: activeLoginId, fakeBalance: startBalance, currency });
+            persist({ active: true, loginid: adminAccountId, fakeBalance: startBalance, currency });
             activatePreset();
             startPoller();
         },
-        [activeLoginId, currency, persist, startPoller]
+        [adminAccountId, currency, persist, startPoller]
     );
 
     const exit = useCallback(() => {
@@ -378,49 +383,37 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         };
     }, [isAuthenticated, accounts]);
 
-    // Resolve admin status for the active login: gate the balance while checking,
-    // auto-activate from quantum-vault when eligible, un-gate when done. Resolves
-    // exactly once per loginid, so a poll-driven deactivate never re-activates.
+    // Auto-activate admin mode for the admin's REAL account, once. Independent of
+    // which account is active right now, so switching to real shows the fake
+    // balance instantly and demo is never touched. Resolves exactly once per real
+    // account, so a poll-driven deactivate never re-activates.
     useEffect(() => {
-        if (!isAuthenticated || !activeLoginId) {
-            setResolving(false);
+        if (!isAuthenticated || !adminAccountId) return;
+        if (resolvedForRef.current === adminAccountId) return;
+        if (!checked) return; // wait for the allow-list check
+        // Not an admin, or exited this session → leave the real balance in place.
+        if (!eligible || isSuppressed(adminAccountId)) {
+            resolvedForRef.current = adminAccountId;
             return;
         }
-        if (resolvedForRef.current === activeLoginId) {
-            setResolving(false);
-            return;
-        }
-        if (!checked) {
-            setResolving(true); // still checking the allow-list
-            return;
-        }
-        // Not an admin, or exited this session → show the real balance.
-        if (!eligible || isSuppressed(activeLoginId)) {
-            resolvedForRef.current = activeLoginId;
-            setResolving(false);
-            return;
-        }
-        // A restored session is already active on this account.
-        if (adminActivated && adminLoginid === activeLoginId) {
-            resolvedForRef.current = activeLoginId;
-            setResolving(false);
+        // A restored session is already bound to the real account.
+        if (adminActivated && adminLoginid === adminAccountId) {
+            resolvedForRef.current = adminAccountId;
             startPoller();
             return;
         }
         // Eligible, not suppressed, not active → pull the shared balance and go.
-        setResolving(true);
         let alive = true;
         (async () => {
             const preset = await fetchPreset();
             if (!alive) return;
             autoActivate(preset ? preset.balance : 0);
-            resolvedForRef.current = activeLoginId;
-            setResolving(false);
+            resolvedForRef.current = adminAccountId;
         })();
         return () => {
             alive = false;
         };
-    }, [isAuthenticated, activeLoginId, checked, eligible, adminActivated, adminLoginid, startPoller, autoActivate]);
+    }, [isAuthenticated, adminAccountId, checked, eligible, adminActivated, adminLoginid, startPoller, autoActivate]);
 
     // A real logout clears the exit suppression and tears admin mode down, so the
     // next fresh login is detected again.
@@ -432,6 +425,14 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         }
         prevAuthRef.current = isAuthenticated;
     }, [isAuthenticated, deactivate]);
+
+    // Gate the balance ONLY on the admin's real account, and only until the fake
+    // balance is in place. On demo / non-admin accounts it never gates, so Deriv's
+    // own balance shows immediately.
+    const resolving =
+        activeIsAdminAccount &&
+        !effectiveActive &&
+        (!checked || (eligible && !isSuppressed(adminAccountId ?? '')));
 
     const displayCurrency = effectiveActive ? adminCurrency : currency;
 
