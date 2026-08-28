@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Crown, ShieldCheck } from 'lucide-react';
+import { Crown } from 'lucide-react';
 import PositionsPanel from '@/components/PositionsPanel';
 import PricingPlans from '@/components/PricingPlans';
 import BasicBot from '@/pages/bots/BasicBot';
@@ -51,13 +51,8 @@ const Dashboard = () => {
                             </div>
 
                             <div className='flex flex-wrap items-center gap-2'>
-                                {admin.active && (
-                                    <span className='chip-solid'>
-                                        <ShieldCheck size={11} /> Simulation
-                                    </span>
-                                )}
                                 {pro.via === 'admin' ? (
-                                    <span className='chip-solid'>
+                                    <span className='chip'>
                                         <Crown size={11} /> Pro
                                     </span>
                                 ) : pro.hasPro ? (
@@ -79,7 +74,7 @@ const Dashboard = () => {
                         <dl className='mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4'>
                             <Tile
                                 tone='gain'
-                                label={admin.active ? 'Simulated balance' : 'Balance'}
+                                label='Balance'
                                 value={
                                     shownBalance == null
                                         ? '—'

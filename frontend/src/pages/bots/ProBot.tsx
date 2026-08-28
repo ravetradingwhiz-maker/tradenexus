@@ -92,7 +92,7 @@ const ProBot = () => {
                 badges={
                     <>
                         <span className={subscribed ? 'chip-solid' : 'chip'}>
-                            <Crown size={11} /> {pro.via === 'admin' ? 'Admin' : subscribed ? 'Active' : 'Locked'}
+                            <Crown size={11} /> {subscribed ? 'Active' : 'Locked'}
                         </span>
                         {pro.via === 'subscription' && pro.expiresAt && (
                             <span className='chip'>
@@ -104,7 +104,6 @@ const ProBot = () => {
                                 })}
                             </span>
                         )}
-                        {pro.via === 'admin' && <span className='chip'>Full access</span>}
                     </>
                 }
                 engine={engine}

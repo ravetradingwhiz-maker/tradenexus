@@ -42,8 +42,8 @@ const AccountSwitcher = () => {
 
     const active = accounts.find(a => a.loginid === activeLoginId);
 
-    // In admin (fake-trade) mode the header must show the simulated balance —
-    // that is the balance the engine is actually spending.
+    // The header shows whichever balance the engine is actually spending. It is
+    // presented identically either way — the chrome never announces the mode.
     const showBalance = admin?.active ? admin.fakeBalance : balance;
     const showCurrency = admin?.active ? admin.adminCurrency : balanceCurrency;
 
@@ -107,21 +107,15 @@ const AccountSwitcher = () => {
                         {fmt(showBalance, showCurrency)}
                     </span>
                     <span className='mt-0.5 flex items-center gap-1 text-[10px] text-mist-500'>
-                        {admin?.active ? (
-                            'Simulated'
-                        ) : (
-                            <>
-                                {active?.loginid ?? 'Account'}
-                                {active && (
-                                    <span
-                                        className={`rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.1em] ${
-                                            active.is_demo ? 'bg-ink-500 text-mist-300' : 'bg-fg text-on-fg'
-                                        }`}
-                                    >
-                                        {active.is_demo ? 'Demo' : 'Real'}
-                                    </span>
-                                )}
-                            </>
+                        {active?.loginid ?? 'Account'}
+                        {active && (
+                            <span
+                                className={`rounded px-1 py-px text-[8px] font-bold uppercase tracking-[0.1em] ${
+                                    active.is_demo ? 'bg-ink-500 text-mist-300' : 'bg-fg text-on-fg'
+                                }`}
+                            >
+                                {active.is_demo ? 'Demo' : 'Real'}
+                            </span>
                         )}
                     </span>
                 </span>
