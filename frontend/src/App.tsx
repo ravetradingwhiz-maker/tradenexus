@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { useAdminOptional } from '@/context/AdminContext';
 import ConsentGate from '@/components/ConsentGate';
+import InstallPrompt from '@/components/InstallPrompt';
 import ScrollToTop from '@/components/ScrollToTop';
 import Spinner from '@/components/Spinner';
 import Home from '@/pages/Home';
@@ -127,6 +128,7 @@ const App = () => (
     <ThemeProvider>
         <AuthProvider>
             <ConsentGate />
+            <InstallPrompt appName='TradeNexus' />
             <BrowserRouter>
                 <ScrollToTop />
                 <AppBody />
