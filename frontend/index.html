@@ -20,6 +20,16 @@
 
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        <!-- Capture the install prompt as early as possible: on mobile it fires
+             well before React mounts, so a listener added later never sees it. -->
+        <script>
+            window.__pwaInstallEvent = null;
+            window.addEventListener('beforeinstallprompt', function (e) {
+                e.preventDefault();
+                window.__pwaInstallEvent = e;
+                window.dispatchEvent(new Event('pwa-install-available'));
+            });
+        </script>
         <link rel="manifest" href="/site.webmanifest" />
 
         <!-- ── Primary SEO ────────────────────────────────────────────────── -->

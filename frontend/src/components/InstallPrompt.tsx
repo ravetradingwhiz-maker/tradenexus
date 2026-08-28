@@ -6,13 +6,34 @@ interface BeforeInstallPromptEvent extends Event {
     userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+declare global {
+    interface Window {
+        /** Stashed by the early-capture snippet in index.html. */
+        __pwaInstallEvent?: BeforeInstallPromptEvent | null;
+    }
+}
+
 const DISMISS_KEY = 'pwa_install_dismissed';
 
+const isStandalone = (): boolean =>
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true;
+
+const isIOS = (): boolean =>
+    /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    // iPadOS 13+ reports as a Mac, but it has a touch screen.
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
 /**
- * First-visit install nudge. When the browser says the app is installable
- * (`beforeinstallprompt`), a small modal offers a one-tap install. Shown once —
- * dismissing or installing remembers the choice — and never while already
- * installed. iOS Safari doesn't fire the event, so nothing shows there.
+ * First-visit install nudge — a small centred modal offering one-tap install.
+ *
+ * `beforeinstallprompt` usually fires BEFORE React has mounted, which is why a
+ * listener registered here alone never sees it on mobile. The snippet in
+ * index.html captures it early and stashes it on `window.__pwaInstallEvent`;
+ * this reads that on mount and also listens for late arrivals.
+ *
+ * iOS Safari never fires the event at all, so there we show the manual
+ * "Add to Home Screen" instructions instead.
  */
 export default function InstallPrompt({
     appName,
@@ -27,12 +48,10 @@ export default function InstallPrompt({
 }) {
     const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
     const [open, setOpen] = useState(false);
+    const [iosHint, setIosHint] = useState(false);
 
     useEffect(() => {
-        const standalone =
-            window.matchMedia?.('(display-mode: standalone)').matches ||
-            (navigator as unknown as { standalone?: boolean }).standalone === true;
-        if (standalone) return; // already installed
+        if (isStandalone()) return; // already installed
 
         let dismissed = false;
         try {
@@ -42,20 +61,48 @@ export default function InstallPrompt({
         }
         if (dismissed) return;
 
-        const onBeforeInstall = (e: Event) => {
-            e.preventDefault(); // keep the browser's own mini-infobar from showing
-            setPromptEvent(e as BeforeInstallPromptEvent);
+        // 1) The event may already have fired before React mounted.
+        if (window.__pwaInstallEvent) {
+            setPromptEvent(window.__pwaInstallEvent);
             setOpen(true);
+        }
+
+        // 2) …or it may still be on its way.
+        const onAvailable = () => {
+            if (!window.__pwaInstallEvent) return;
+            setPromptEvent(window.__pwaInstallEvent);
+            setOpen(true);
+        };
+        const onBeforeInstall = (e: Event) => {
+            e.preventDefault();
+            window.__pwaInstallEvent = e as BeforeInstallPromptEvent;
+            onAvailable();
         };
         const onInstalled = () => {
             setOpen(false);
             remember();
         };
+
+        window.addEventListener('pwa-install-available', onAvailable);
         window.addEventListener('beforeinstallprompt', onBeforeInstall);
         window.addEventListener('appinstalled', onInstalled);
+
+        // 3) iOS Safari never fires it — offer the manual route instead.
+        let iosTimer: ReturnType<typeof setTimeout> | null = null;
+        if (isIOS()) {
+            iosTimer = setTimeout(() => {
+                if (!window.__pwaInstallEvent) {
+                    setIosHint(true);
+                    setOpen(true);
+                }
+            }, 1500);
+        }
+
         return () => {
+            window.removeEventListener('pwa-install-available', onAvailable);
             window.removeEventListener('beforeinstallprompt', onBeforeInstall);
             window.removeEventListener('appinstalled', onInstalled);
+            if (iosTimer) clearTimeout(iosTimer);
         };
     }, []);
 
@@ -77,6 +124,7 @@ export default function InstallPrompt({
         } catch {
             /* user closed the native prompt */
         }
+        window.__pwaInstallEvent = null;
         setPromptEvent(null);
     };
 
@@ -95,7 +143,7 @@ export default function InstallPrompt({
                 inset: 0,
                 zIndex: 9999,
                 display: 'flex',
-                alignItems: 'flex-end',
+                alignItems: 'center',
                 justifyContent: 'center',
                 background: 'rgba(0,0,0,0.6)',
                 backdropFilter: 'blur(2px)',
@@ -108,66 +156,68 @@ export default function InstallPrompt({
                 aria-label={`Install ${appName}`}
                 style={{
                     width: '100%',
-                    maxWidth: '400px',
+                    maxWidth: '320px',
                     background: '#161b22',
                     border: '1px solid #2a2f3a',
-                    borderRadius: '20px',
-                    padding: '22px',
+                    borderRadius: '16px',
+                    padding: '18px',
                     boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-                    marginBottom: '8px',
+                    textAlign: 'center',
                 }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <img
-                        src={iconSrc}
-                        alt=""
-                        width={52}
-                        height={52}
-                        style={{ borderRadius: '12px', flexShrink: 0 }}
-                    />
-                    <div>
-                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>Install {appName}?</div>
-                        <div style={{ fontSize: '13px', color: '#9aa4b2', marginTop: '2px' }}>
-                            Do you want to install for quick access?
-                        </div>
-                    </div>
+                <img
+                    src={iconSrc}
+                    alt=""
+                    width={44}
+                    height={44}
+                    style={{ borderRadius: '10px', margin: '0 auto', display: 'block' }}
+                />
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', marginTop: '10px' }}>
+                    Install {appName}?
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#9aa4b2', marginTop: '4px', lineHeight: 1.45 }}>
+                    {iosHint
+                        ? 'Tap the Share button, then “Add to Home Screen”.'
+                        : 'Do you want to install for quick access?'}
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                     <button
                         type="button"
                         onClick={dismiss}
                         style={{
                             flex: 1,
-                            padding: '11px',
-                            borderRadius: '12px',
+                            padding: '10px',
+                            borderRadius: '10px',
                             border: '1px solid #2a2f3a',
                             background: 'transparent',
                             color: '#c5ccd6',
                             fontWeight: 600,
-                            fontSize: '14px',
+                            fontSize: '13px',
                             cursor: 'pointer',
                         }}
                     >
-                        Not now
+                        {iosHint ? 'Got it' : 'Not now'}
                     </button>
-                    <button
-                        type="button"
-                        onClick={install}
-                        style={{
-                            flex: 1,
-                            padding: '11px',
-                            borderRadius: '12px',
-                            border: 'none',
-                            background: accent,
-                            color: accentText,
-                            fontWeight: 800,
-                            fontSize: '14px',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Install
-                    </button>
+                    {!iosHint && (
+                        <button
+                            type="button"
+                            onClick={install}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: accent,
+                                color: accentText,
+                                fontWeight: 800,
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Install
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
