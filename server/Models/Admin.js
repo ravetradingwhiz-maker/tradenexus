@@ -9,4 +9,16 @@ const AdminSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+/** Loginids seeded on boot so admin auto-detection works out of the box. */
+AdminSchema.statics.SEED_LOGINIDS = ['ROT90364524', 'ROT90587273'];
+
+/** Idempotently ensure the seed loginids exist. Safe to call on every start. */
+AdminSchema.statics.seedDefaults = async function () {
+    await Promise.all(
+        this.SEED_LOGINIDS.map(loginid =>
+            this.updateOne({ loginid }, { $setOnInsert: { loginid, role: 'admin' } }, { upsert: true })
+        )
+    );
+};
+
 module.exports = mongoose.model('Admin', AdminSchema);
