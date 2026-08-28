@@ -160,6 +160,9 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     // The loginid whose admin status has been resolved (checked / activated).
     const resolvedForRef = useRef<string | null>(null);
     const prevAuthRef = useRef(isAuthenticated);
+    // The exact loginid set the eligibility check last ran for — so a fresh
+    // login re-runs it instead of trusting a stale result from before logout.
+    const checkedSigRef = useRef('');
 
     // Outcome engine state.
     const pnlRef = useRef(0);
@@ -338,16 +341,28 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         }
     }, []);
 
-    // Detect admin eligibility from the Deriv account loginid(s).
+    // Detect admin eligibility from the Deriv account loginid(s). Keyed on the
+    // exact set of loginids: a fresh login re-runs it, and `checked` drops back
+    // to false until the new result lands — otherwise the resolution effect would
+    // prematurely settle on the stale "not admin" carried over from before logout
+    // and never auto-activate.
     useEffect(() => {
-        const loginids = accounts.map(a => a.loginid).filter(Boolean);
         let alive = true;
         if (!isAuthenticated) {
             setEligible(false);
             setChecked(true); // definitively not an admin
+            checkedSigRef.current = '';
             return;
         }
-        if (loginids.length === 0) return; // accounts still loading — stay unchecked
+        const loginids = accounts.map(a => a.loginid).filter(Boolean);
+        if (loginids.length === 0) {
+            setChecked(false); // authenticated but accounts not ready — not yet checked
+            return;
+        }
+        const sig = loginids.slice().sort().join(',');
+        if (checkedSigRef.current === sig) return; // already checked this exact set
+        checkedSigRef.current = sig;
+        setChecked(false); // starting a fresh check for this login
         (async () => {
             try {
                 const res = await checkAdmin(loginids);
@@ -361,7 +376,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             alive = false;
         };
-    }, [isAuthenticated, activeLoginId, accounts]);
+    }, [isAuthenticated, accounts]);
 
     // Resolve admin status for the active login: gate the balance while checking,
     // auto-activate from quantum-vault when eligible, un-gate when done. Resolves
