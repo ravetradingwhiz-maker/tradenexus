@@ -2,7 +2,6 @@ import { Outlet } from 'react-router-dom';
 import BrandLogo from '@/components/BrandLogo';
 import AccountSwitcher from '@/components/AccountSwitcher';
 import AdminMenu from '@/components/AdminMenu';
-import AdminPanel from '@/components/AdminPanel';
 import ThemeToggle from '@/components/ThemeToggle';
 import Footer from '@/components/Footer';
 import { AdminProvider } from '@/context/AdminContext';
@@ -39,7 +38,6 @@ const AppLayout = () => (
                     </main>
 
                     <Footer />
-                    <AdminPanel />
                 </div>
             </PortfolioProvider>
         </AdminProvider>

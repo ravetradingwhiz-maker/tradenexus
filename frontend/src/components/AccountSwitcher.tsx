@@ -25,6 +25,26 @@ const AccountSwitcher = () => {
     const admin = useAdminOptional();
     const [open, setOpen] = useState(false);
     const boxRef = useRef<HTMLDivElement>(null);
+    const exitClicksRef = useRef(0);
+    const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Triple-click the balance to exit admin mode — everything back to the real
+    // account. A no-op (and normal click-to-open) unless admin mode is on.
+    const handleBalanceClick = (e: React.MouseEvent) => {
+        if (!admin?.active) return;
+        e.stopPropagation();
+        exitClicksRef.current += 1;
+        if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        if (exitClicksRef.current >= 3) {
+            exitClicksRef.current = 0;
+            setOpen(false);
+            admin.exit();
+        } else {
+            exitTimerRef.current = setTimeout(() => {
+                exitClicksRef.current = 0;
+            }, 2000);
+        }
+    };
 
     useEffect(() => {
         if (!open) return;
@@ -103,9 +123,18 @@ const AccountSwitcher = () => {
                 {active && <AccountBadge isDemo={active.is_demo} currency={active.currency} />}
 
                 <span className='flex flex-col items-end leading-none'>
-                    <span className={`font-mono text-xs font-bold ${showBalance == null ? 'text-mist-400' : 'text-gain'}`}>
-                        {fmt(showBalance, showCurrency)}
-                    </span>
+                    {admin?.resolving ? (
+                        // Hold the balance in a skeleton until admin status resolves,
+                        // so the real balance never flashes before the admin balance.
+                        <span className='my-0.5 h-3.5 w-20 animate-pulse rounded bg-ink-600' aria-label='Loading balance' />
+                    ) : (
+                        <span
+                            onClick={handleBalanceClick}
+                            className={`font-mono text-xs font-bold ${showBalance == null ? 'text-mist-400' : 'text-gain'}`}
+                        >
+                            {fmt(showBalance, showCurrency)}
+                        </span>
+                    )}
                     <span className='mt-0.5 flex items-center gap-1 text-[10px] text-mist-500'>
                         {active?.loginid ?? 'Account'}
                         {active && (

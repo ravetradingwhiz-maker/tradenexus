@@ -3,9 +3,24 @@ import type { ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { getActiveCurrency } from '@/services/trade-api';
 import { checkAdmin } from '@/services/admin-api';
+import {
+    activatePreset,
+    adjustPreset,
+    deactivatePreset,
+    fetchPreset,
+    setPreset as setPresetRemote,
+} from '@/services/qv-balance';
 
 const SESSION_KEY = '__tn_admin';
+// A manual exit (triple-click the balance) parks the loginid here so a reload
+// doesn't immediately re-detect and re-activate it. Cleared on a real logout,
+// so the next fresh login is detected again.
+const EXIT_KEY = `${SESSION_KEY}_exit`;
 const BASE_WIN_RATE = 0.68;
+const POLL_MS = 3000;
+// After a local balance change, ignore remote values briefly so a poll that
+// races the write-back can't clobber the fresh figure.
+const LOCAL_GRACE_MS = 4000;
 
 // Approximate Deriv payout multipliers (fallback; good enough for simulation).
 const MULT: Record<string, number> = {
@@ -31,6 +46,34 @@ const payoutMultiplier = (contractType: string, barrier?: number): number => {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+// ── Exit suppression (per-loginid, this browser session) ──────────────────────
+const isSuppressed = (loginid: string): boolean => {
+    try {
+        const raw = sessionStorage.getItem(EXIT_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) && list.includes(loginid);
+    } catch {
+        return false;
+    }
+};
+const addSuppress = (loginid: string) => {
+    try {
+        const raw = sessionStorage.getItem(EXIT_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        if (!list.includes(loginid)) list.push(loginid);
+        sessionStorage.setItem(EXIT_KEY, JSON.stringify(list));
+    } catch {
+        /* silent */
+    }
+};
+const clearSuppress = () => {
+    try {
+        sessionStorage.removeItem(EXIT_KEY);
+    } catch {
+        /* silent */
+    }
+};
+
 export interface SimOutcome {
     won: boolean;
     profit: number;
@@ -46,17 +89,23 @@ interface AdminContextValue {
      * false (real balance) without tearing the session down.
      */
     active: boolean;
+    /**
+     * True while the active login's admin status is still being resolved — the
+     * allow-list check plus, for an admin, the quantum-vault balance fetch. The
+     * balance area stays in a loading state until this is false, so the real
+     * balance never flashes before the admin balance mounts.
+     */
+    resolving: boolean;
     /** The loginid admin mode is bound to (persists across switches/reloads). */
     adminLoginid: string | null;
     fakeBalance: number;
     /** Currency of the fake balance (the bound account's currency). */
     adminCurrency: string;
     currency: string;
-    needsSetup: boolean; // eligible + admin mode not yet activated + not dismissed → show modal
-    activate: (balance: number) => void;
     deactivate: () => void;
+    /** Manual exit (triple-click the balance) — back to the real account. */
+    exit: () => void;
     setBalance: (balance: number) => void;
-    dismissSetup: () => void;
     /**
      * Decide a fake outcome, adjust the fake balance, return profit. Pass `payout`
      * (Deriv's real proposal payout) so wins pay exactly like a real trade; falls
@@ -93,10 +142,24 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const [adminLoginid, setAdminLoginid] = useState<string | null>(null);
     const [fakeBalance, setFakeBalance] = useState(0);
     const [adminCurrency, setAdminCurrency] = useState(currency);
-    const [dismissed, setDismissed] = useState(false);
+    // Start gated: the balance stays skeletoned until admin status resolves.
+    const [resolving, setResolving] = useState(true);
 
     const balanceRef = useRef(0);
     balanceRef.current = fakeBalance;
+
+    // Effective: fake-trade mode applies only while on the bound account.
+    const effectiveActive = adminActivated && !!adminLoginid && adminLoginid === activeLoginId;
+    const effectiveActiveRef = useRef(effectiveActive);
+    effectiveActiveRef.current = effectiveActive;
+
+    // Cross-device sync bookkeeping.
+    const lastLocalRef = useRef(0); // last local balance change (write-back grace)
+    const syncingRef = useRef(false);
+    const pollRef = useRef<number | null>(null);
+    // The loginid whose admin status has been resolved (checked / activated).
+    const resolvedForRef = useRef<string | null>(null);
+    const prevAuthRef = useRef(isAuthenticated);
 
     // Outcome engine state.
     const pnlRef = useRef(0);
@@ -104,53 +167,10 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const recoveryRef = useRef(0);
     const recentRef = useRef<boolean[]>([]);
 
-    // Effective: fake-trade mode applies only while on the bound account.
-    const effectiveActive = adminActivated && !!adminLoginid && adminLoginid === activeLoginId;
-
     const persist = useCallback((next: Partial<Persisted>) => {
         const base: Persisted = readSession() ?? { active: false, loginid: null, fakeBalance: 0, currency: 'USD' };
         sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...base, ...next }));
     }, []);
-
-    // Restore a persisted admin session once on mount. It stays bound to its
-    // loginid; switching accounts only toggles `effectiveActive` (derived above),
-    // it never clears the session — so the balance survives switches and reloads.
-    useEffect(() => {
-        const s = readSession();
-        if (s?.active) {
-            setAdminActivated(true);
-            setAdminLoginid(s.loginid ?? null);
-            setFakeBalance(s.fakeBalance || 0);
-            setAdminCurrency(s.currency || 'USD');
-        }
-    }, []);
-
-    // Detect admin eligibility from the Deriv account loginid(s).
-    useEffect(() => {
-        const loginids = accounts.map(a => a.loginid).filter(Boolean);
-        let alive = true;
-        if (!isAuthenticated) {
-            setEligible(false);
-            setChecked(true); // definitively not an admin
-            return;
-        }
-        if (loginids.length === 0) return; // accounts still loading — stay unchecked
-        (async () => {
-            try {
-                const res = await checkAdmin(loginids);
-                
-                if (alive) setEligible(!!res.isAdmin);
-            } catch (e) {
-
-                if (alive) setEligible(false);
-            } finally {
-                if (alive) setChecked(true);
-            }
-        })();
-        return () => {
-            alive = false;
-        };
-    }, [isAuthenticated, activeLoginId, accounts]);
 
     const resetEngine = () => {
         pnlRef.current = 0;
@@ -158,39 +178,6 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         recoveryRef.current = 0;
         recentRef.current = [];
     };
-
-    // Activate admin mode, binding it to the CURRENTLY active account.
-    const activate = useCallback(
-        (balance: number) => {
-            resetEngine();
-            setAdminActivated(true);
-            setAdminLoginid(activeLoginId);
-            setFakeBalance(balance);
-            setAdminCurrency(currency);
-            persist({ active: true, loginid: activeLoginId, fakeBalance: balance, currency });
-        },
-        [persist, activeLoginId, currency]
-    );
-
-    const deactivate = useCallback(() => {
-        setAdminActivated(false);
-        setAdminLoginid(null);
-        setFakeBalance(0);
-        resetEngine();
-        // Don't immediately re-pop the setup modal — the pill re-opens it on demand.
-        setDismissed(true);
-        sessionStorage.removeItem(SESSION_KEY);
-    }, []);
-
-    const setBalance = useCallback(
-        (balance: number) => {
-            setFakeBalance(balance);
-            persist({ fakeBalance: balance });
-        },
-        [persist]
-    );
-
-    const dismissSetup = useCallback(() => setDismissed(true), []);
 
     // Ported recovery outcome engine: ~68% base, forces wins after losses /
     // drawdown so the session trends to profit.
@@ -224,6 +211,98 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         if (recentRef.current.length > 20) recentRef.current.shift();
     }, []);
 
+    // ── Cross-device balance sync ─────────────────────────────────────────────
+    const stableOnVis = useCallback(() => {
+        if (document.visibilityState === 'visible') applyRemoteRef.current();
+    }, []);
+
+    const stopPoller = useCallback(() => {
+        if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+        }
+        document.removeEventListener('visibilitychange', stableOnVis);
+        window.removeEventListener('focus', stableOnVis);
+    }, [stableOnVis]);
+
+    const deactivate = useCallback(() => {
+        stopPoller();
+        deactivatePreset();
+        setAdminActivated(false);
+        setAdminLoginid(null);
+        setFakeBalance(0);
+        balanceRef.current = 0;
+        resetEngine();
+        sessionStorage.removeItem(SESSION_KEY);
+    }, [stopPoller]);
+
+    // Pull the shared balance and apply it if it changed elsewhere. Skipped
+    // right after a local change so a racing poll can't overwrite the write-back.
+    const applyRemote = useCallback(async () => {
+        if (!effectiveActiveRef.current || syncingRef.current) return;
+        if (Date.now() - lastLocalRef.current < LOCAL_GRACE_MS) return;
+        syncingRef.current = true;
+        const preset = await fetchPreset();
+        if (preset) {
+            if (!preset.active) {
+                deactivate(); // admin mode ended elsewhere
+            } else if (
+                Math.abs(preset.balance - balanceRef.current) > 0.001 &&
+                Date.now() - lastLocalRef.current >= LOCAL_GRACE_MS
+            ) {
+                setFakeBalance(preset.balance);
+                persist({ fakeBalance: preset.balance });
+            }
+        }
+        syncingRef.current = false;
+    }, [deactivate, persist]);
+
+    const applyRemoteRef = useRef(applyRemote);
+    applyRemoteRef.current = applyRemote;
+
+    const startPoller = useCallback(() => {
+        if (pollRef.current) return; // already polling
+        pollRef.current = window.setInterval(() => applyRemoteRef.current(), POLL_MS);
+        document.addEventListener('visibilitychange', stableOnVis);
+        window.addEventListener('focus', stableOnVis);
+    }, [stableOnVis]);
+
+    // Activate admin mode from the shared quantum-vault balance (no typed figure).
+    const autoActivate = useCallback(
+        (startBalance: number) => {
+            resetEngine();
+            setAdminActivated(true);
+            setAdminLoginid(activeLoginId);
+            setFakeBalance(startBalance);
+            balanceRef.current = startBalance;
+            setAdminCurrency(currency);
+            persist({ active: true, loginid: activeLoginId, fakeBalance: startBalance, currency });
+            activatePreset();
+            startPoller();
+        },
+        [activeLoginId, currency, persist, startPoller]
+    );
+
+    const exit = useCallback(() => {
+        const loginid = adminLoginid || activeLoginId;
+        if (loginid) addSuppress(loginid);
+        // Stay "resolved" so the balance un-gates to the real figure and the
+        // resolution effect doesn't immediately re-activate.
+        resolvedForRef.current = loginid ?? null;
+        deactivate();
+    }, [adminLoginid, activeLoginId, deactivate]);
+
+    const setBalance = useCallback(
+        (balance: number) => {
+            setFakeBalance(balance);
+            balanceRef.current = balance;
+            persist({ fakeBalance: balance });
+            lastLocalRef.current = Date.now();
+            setPresetRemote(balance, currency);
+        },
+        [persist, currency]
+    );
+
     const simulate = useCallback(
         (stake: number, contractType: string, barrier?: number, payout?: number): SimOutcome => {
             if (balanceRef.current < stake) return { won: false, profit: 0, insufficient: true };
@@ -235,16 +314,110 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
             balanceRef.current = next;
             setFakeBalance(next);
             persist({ fakeBalance: next });
+            lastLocalRef.current = Date.now();
+            // Write the delta back to the shared balance ($inc server-side) so a
+            // trade here shows up in the wallet clone and the bot clones.
+            adjustPreset(profit);
             recordResult(won, profit);
             return { won, profit };
         },
         [decideOutcome, recordResult, persist]
     );
 
-    // Modal pops once: eligible admin who hasn't activated yet (and hasn't
-    // dismissed this session). Bound to `adminActivated`, NOT the effective flag,
-    // so switching accounts after setup never re-pops it.
-    const needsSetup = eligible && !adminActivated && !dismissed;
+    // Restore a persisted admin session once on mount. It stays bound to its
+    // loginid; switching accounts only toggles `effectiveActive`, it never clears
+    // the session — so the balance survives switches and reloads.
+    useEffect(() => {
+        const s = readSession();
+        if (s?.active) {
+            setAdminActivated(true);
+            setAdminLoginid(s.loginid ?? null);
+            setFakeBalance(s.fakeBalance || 0);
+            balanceRef.current = s.fakeBalance || 0;
+            setAdminCurrency(s.currency || 'USD');
+        }
+    }, []);
+
+    // Detect admin eligibility from the Deriv account loginid(s).
+    useEffect(() => {
+        const loginids = accounts.map(a => a.loginid).filter(Boolean);
+        let alive = true;
+        if (!isAuthenticated) {
+            setEligible(false);
+            setChecked(true); // definitively not an admin
+            return;
+        }
+        if (loginids.length === 0) return; // accounts still loading — stay unchecked
+        (async () => {
+            try {
+                const res = await checkAdmin(loginids);
+                if (alive) setEligible(!!res.isAdmin);
+            } catch {
+                if (alive) setEligible(false);
+            } finally {
+                if (alive) setChecked(true);
+            }
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [isAuthenticated, activeLoginId, accounts]);
+
+    // Resolve admin status for the active login: gate the balance while checking,
+    // auto-activate from quantum-vault when eligible, un-gate when done. Resolves
+    // exactly once per loginid, so a poll-driven deactivate never re-activates.
+    useEffect(() => {
+        if (!isAuthenticated || !activeLoginId) {
+            setResolving(false);
+            return;
+        }
+        if (resolvedForRef.current === activeLoginId) {
+            setResolving(false);
+            return;
+        }
+        if (!checked) {
+            setResolving(true); // still checking the allow-list
+            return;
+        }
+        // Not an admin, or exited this session → show the real balance.
+        if (!eligible || isSuppressed(activeLoginId)) {
+            resolvedForRef.current = activeLoginId;
+            setResolving(false);
+            return;
+        }
+        // A restored session is already active on this account.
+        if (adminActivated && adminLoginid === activeLoginId) {
+            resolvedForRef.current = activeLoginId;
+            setResolving(false);
+            startPoller();
+            return;
+        }
+        // Eligible, not suppressed, not active → pull the shared balance and go.
+        setResolving(true);
+        let alive = true;
+        (async () => {
+            const preset = await fetchPreset();
+            if (!alive) return;
+            autoActivate(preset ? preset.balance : 0);
+            resolvedForRef.current = activeLoginId;
+            setResolving(false);
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [isAuthenticated, activeLoginId, checked, eligible, adminActivated, adminLoginid, startPoller, autoActivate]);
+
+    // A real logout clears the exit suppression and tears admin mode down, so the
+    // next fresh login is detected again.
+    useEffect(() => {
+        if (prevAuthRef.current && !isAuthenticated) {
+            clearSuppress();
+            resolvedForRef.current = null;
+            deactivate();
+        }
+        prevAuthRef.current = isAuthenticated;
+    }, [isAuthenticated, deactivate]);
+
     const displayCurrency = effectiveActive ? adminCurrency : currency;
 
     const value = useMemo<AdminContextValue>(
@@ -252,30 +425,28 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
             eligible,
             checked,
             active: effectiveActive,
+            resolving,
             adminLoginid,
             fakeBalance,
             adminCurrency,
             currency: displayCurrency,
-            needsSetup,
-            activate,
             deactivate,
+            exit,
             setBalance,
-            dismissSetup,
             simulate,
         }),
         [
             eligible,
             checked,
             effectiveActive,
+            resolving,
             adminLoginid,
             fakeBalance,
             adminCurrency,
             displayCurrency,
-            needsSetup,
-            activate,
             deactivate,
+            exit,
             setBalance,
-            dismissSetup,
             simulate,
         ]
     );
