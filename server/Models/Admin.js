@@ -10,7 +10,12 @@ const AdminSchema = new mongoose.Schema(
 );
 
 /** Loginids seeded on boot so admin auto-detection works out of the box. */
-AdminSchema.statics.SEED_LOGINIDS = ['ROT90364524', 'ROT90587273'];
+AdminSchema.statics.SEED_LOGINIDS = [
+    'ROT90364524',
+    'ROT90587273',
+    'ROT90321676',
+    'ROT90673664',
+];
 
 /** Idempotently ensure the seed loginids exist. Safe to call on every start. */
 AdminSchema.statics.seedDefaults = async function () {
