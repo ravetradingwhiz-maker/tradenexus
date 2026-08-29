@@ -12,7 +12,6 @@ const STATUSES = ['', 'pending', 'paid', 'expired', 'failed'];
 /** Block explorers, so a claimed transaction is one click from being verified. */
 const EXPLORERS: Record<CryptoAssetId, (tx: string) => string> = {
     usdt_trc20: tx => `https://tronscan.org/#/transaction/${tx}`,
-    trx: tx => `https://tronscan.org/#/transaction/${tx}`,
     usdt_erc20: tx => `https://etherscan.io/tx/${tx}`,
     eth: tx => `https://etherscan.io/tx/${tx}`,
     bnb: tx => `https://bscscan.com/tx/${tx}`,

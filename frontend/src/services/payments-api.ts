@@ -21,8 +21,7 @@ export type CryptoAssetId =
     | 'ltc'
     | 'xrp'
     | 'bnb'
-    | 'usdc_bep20'
-    | 'trx';
+    | 'usdc_bep20';
 
 export interface CryptoAsset {
     id: CryptoAssetId;

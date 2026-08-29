@@ -3,7 +3,7 @@
 // 'payment_methods'), mirroring config/plan.js.
 
 const METHOD_DEFS = {
-    crypto: { label: 'Crypto', desc: 'USDT, BTC, ETH, SOL, LTC, XRP, BNB, USDC and TRX' },
+    crypto: { label: 'Crypto', desc: 'USDT, BTC, ETH, SOL, LTC, XRP, BNB and USDC' },
     card: { label: 'Card', desc: 'Credit / debit card via Paystack' },
     mpesa: { label: 'M-Pesa', desc: 'Safaricom mobile money via Paystack (KES)' },
 };

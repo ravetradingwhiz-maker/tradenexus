@@ -1,5 +1,5 @@
 // NOWPayments integration — the route for every coin we don't watch on-chain
-// ourselves (BTC, ETH, SOL, LTC, XRP, BNB, USDC, TRX, USDT-ERC20).
+// ourselves (BTC, ETH, SOL, LTC, XRP, BNB, USDC, USDT-ERC20).
 //
 // NOWPayments issues a deposit address per order and quotes the amount in the
 // payer's chosen coin, which is what makes the volatile assets workable: the

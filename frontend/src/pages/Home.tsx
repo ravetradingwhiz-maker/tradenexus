@@ -141,7 +141,7 @@ const FAQS = [
     },
     {
         q: 'How do I pay?',
-        a: 'Card, M-Pesa, or any of ten coins — USDT, BTC, ETH, SOL, LTC, XRP, BNB, USDC or TRX. One payment covers a full year on every login of your Deriv account.',
+        a: 'Card, M-Pesa, or any of nine coins — USDT, BTC, ETH, SOL, LTC, XRP, BNB or USDC. One payment covers a full year on every login of your Deriv account.',
     },
 ];
 

@@ -130,21 +130,15 @@ const ASSET_DEFS = {
         pegged: true,
         nowpayments: 'usdcbsc',
     },
-    trx: {
-        ticker: 'TRX',
-        name: 'Tron',
-        network: 'TRON',
-        envKey: 'WALLET_TRX',
-        chain: 'tron',
-        kind: 'native',
-        decimals: 6,
-        coingecko: 'tron',
-        nowpayments: 'trx',
-    },
 };
 
+// Native TRX is deliberately NOT offered. It shares the TRON chain — and the
+// same receiving address — with USDT TRC-20, but is priced as a volatile coin,
+// so a $199 order quoted ~587 TRX beside a 199 USDT option only ever read as a
+// conversion bug. USDT on TRC-20 is the TRON route buyers actually want.
+
 /** Display order at checkout — stablecoins first, then the majors. */
-const ASSET_ORDER = ['usdt_trc20', 'usdt_erc20', 'btc', 'eth', 'sol', 'ltc', 'xrp', 'bnb', 'usdc_bep20', 'trx'];
+const ASSET_ORDER = ['usdt_trc20', 'usdt_erc20', 'btc', 'eth', 'sol', 'ltc', 'xrp', 'bnb', 'usdc_bep20'];
 
 /** All assets are on by default; admins narrow the list down. */
 const ASSET_DEFAULTS = ASSET_ORDER.reduce((acc, id) => {

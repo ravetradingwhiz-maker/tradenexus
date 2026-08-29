@@ -18,7 +18,6 @@ const SLUG: Record<CryptoAssetId, string> = {
     xrp: 'xrp',
     bnb: 'bnb',
     usdc_bep20: 'usdc',
-    trx: 'trx',
 };
 
 const CDN = 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color';

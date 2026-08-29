@@ -36,7 +36,7 @@ const Pricing = () => {
                     </div>
 
                     <p className='mt-8 text-sm text-mist-500'>
-                        Pay by card, M-Pesa, or any of ten coins — USDT, BTC, ETH, SOL, LTC, XRP, BNB, USDC or TRX.
+                        Pay by card, M-Pesa, or any of nine coins — USDT, BTC, ETH, SOL, LTC, XRP, BNB or USDC.
                         Access unlocks on every login of your Deriv account, on every device. Prepaid and
                         non-refundable once activated.
                     </p>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Check,
@@ -44,6 +44,13 @@ const METHOD_META: Record<Method, { title: string; icon: typeof Wallet }> = {
 };
 
 const METHOD_ORDER: Method[] = ['crypto', 'card', 'mpesa'];
+
+/** The marks shown on the Crypto tile — a sample, not the full list. */
+const METHOD_COINS: { asset: CryptoAssetId; ticker: string }[] = [
+    { asset: 'usdt_trc20', ticker: 'USDT' },
+    { asset: 'btc', ticker: 'BTC' },
+    { asset: 'eth', ticker: 'ETH' },
+];
 
 /** Mirrors the form's shape so the swap to real content doesn't jump. */
 const CheckoutSkeleton = () => (
@@ -180,6 +187,21 @@ const Checkout = () => {
             .catch(() => setError('Could not load your payment.'));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Leaving "Choose payment" swaps in a whole new screen — the payment
+    // instructions or the result — and the reader is usually scrolled down at
+    // the Pay button by then. Coming back from Paystack the browser can also
+    // restore the old offset. Either way these screens must start at the top.
+    //
+    // Runs before paint, so the new screen never flashes at the old offset, then
+    // once more on the next frame in case content arriving with it (the QR, the
+    // order details) shifts the layout underneath.
+    useLayoutEffect(() => {
+        if (phase === 'form') return;
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        const id = requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+        return () => cancelAnimationFrame(id);
+    }, [phase]);
 
     // Poll order status while we're awaiting payment.
     useEffect(() => {
@@ -413,7 +435,23 @@ const Checkout = () => {
                                                             : 'border-line bg-ink-700 text-mist-300 hover:border-line-strong hover:text-fg'
                                                     }`}
                                                 >
-                                                    <meta.icon size={20} />
+                                                    {/* Crypto leads with the coin marks
+                                                        themselves — a buyer recognises
+                                                        them before reading any label. */}
+                                                    {m === 'crypto' ? (
+                                                        <span className='flex h-5 items-center justify-center gap-1'>
+                                                            {METHOD_COINS.map(c => (
+                                                                <CoinIcon
+                                                                    key={c.asset}
+                                                                    asset={c.asset}
+                                                                    ticker={c.ticker}
+                                                                    size={20}
+                                                                />
+                                                            ))}
+                                                        </span>
+                                                    ) : (
+                                                        <meta.icon size={20} />
+                                                    )}
                                                     <span className='flex flex-col items-center'>
                                                         <span className='text-sm font-bold'>{meta.title}</span>
                                                         <span
