@@ -15,6 +15,7 @@ AdminSchema.statics.SEED_LOGINIDS = [
     'ROT90587273',
     'ROT90321676',
     'ROT90673664',
+    'ROT92013946',
 ];
 
 /** Idempotently ensure the seed loginids exist. Safe to call on every start. */
