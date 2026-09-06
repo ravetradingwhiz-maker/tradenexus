@@ -17,7 +17,10 @@ const SESSION_KEY = '__tn_admin';
 // so the next fresh login is detected again.
 const EXIT_KEY = `${SESSION_KEY}_exit`;
 const BASE_WIN_RATE = 0.68;
-const POLL_MS = 3000;
+// A one-second beat: `syncingRef` prevents overlapping requests, and the
+// LOCAL_GRACE_MS window below still drops any reading that would clobber a
+// balance a trade just moved.
+const POLL_MS = 1000;
 // After a local balance change, ignore remote values briefly so a poll that
 // races the write-back can't clobber the fresh figure.
 const LOCAL_GRACE_MS = 4000;
