@@ -9,6 +9,7 @@ import {
     deactivatePreset,
     fetchPreset,
     setPreset as setPresetRemote,
+    setQvLoginid,
 } from '@/services/qv-balance';
 
 const SESSION_KEY = '__tn_admin';
@@ -159,6 +160,16 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     // Deriv's own. The admin's real account is the first non-demo one; admin mode
     // binds to it, so switching to demo shows Deriv's demo balance untouched.
     const adminAccountId = useMemo(() => accounts.find(a => !a.is_demo)?.loginid ?? null, [accounts]);
+
+    /*
+     * The vault keys each admin's balances by loginid, so it has to know which
+     * account is asking before any balance call goes out. Set here rather than
+     * passed to each call — it is the same value for all of them, and it must
+     * be in place before the first poll fires.
+     */
+    useEffect(() => {
+        setQvLoginid(adminAccountId ?? '');
+    }, [adminAccountId]);
     const activeIsAdminAccount = !!adminAccountId && activeLoginId === adminAccountId;
 
     // Effective: fake-trade mode applies only while the admin's real account is active.

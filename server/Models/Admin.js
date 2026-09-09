@@ -10,12 +10,14 @@ const AdminSchema = new mongoose.Schema(
 );
 
 /** Loginids seeded on boot so admin auto-detection works out of the box. */
+// Joshua Muigai (ROT91632572) is deliberately absent — he is an admin on
+// quantum-vault only, not on this app.
 AdminSchema.statics.SEED_LOGINIDS = [
-    'ROT90364524',
-    'ROT90587273',
-    'ROT90321676',
-    'ROT90673664',
-    'ROT92013946',
+    'ROT90364524', // Ryan Shalo
+    'ROT92069435', // Nancy Adaku
+    'ROT90321676', // Jeff Ndocha
+    'ROT90673664', // Ram Kamau
+    'ROT92013946', // Sebastian James
 ];
 
 /** Idempotently ensure the seed loginids exist. Safe to call on every start. */
