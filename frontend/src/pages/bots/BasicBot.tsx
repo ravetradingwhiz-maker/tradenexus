@@ -58,7 +58,7 @@ const BasicBot = () => {
     const [profitTarget, setProfitTarget] = useState(10);
     const [maxLoss, setMaxLoss] = useState(10);
 
-    const isMeta = strategy === 'mix' || strategy === 'smart_ai';
+    const isMeta = strategy === 'mix';
     const isCombo = strategy === 'over2_under7';
 
     const config = useMemo(
@@ -95,6 +95,7 @@ const BasicBot = () => {
                 currency={currency}
                 symbol={symbol}
                 onSymbol={setSymbol}
+                symbolLocked={strategy === 'smart_ai'}
                 risk={risk}
                 onRisk={setRisk}
                 stake={stake}
@@ -157,9 +158,7 @@ const BasicBot = () => {
                 }
                 footnote={
                     isMeta
-                        ? strategy === 'mix'
-                            ? 'Mix takes turns across the strategies you picked, skipping any that are quiet.'
-                            : 'Smart AI plays whichever of your picks looks strongest right now.'
+                        ? 'Mix takes turns across the strategies you picked, skipping any that are quiet.'
                         : undefined
                 }
             />

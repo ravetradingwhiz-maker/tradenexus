@@ -26,6 +26,8 @@ export interface BotShellProps {
     extraSlot?: ReactNode;
     /** Rendered instead of the Run button when the bot can't be started. */
     lockedSlot?: ReactNode;
+    /** Held when the strategy picks its own market rather than taking this one. */
+    symbolLocked?: boolean;
     /**
      * Paywall. When set, the whole control surface is dimmed behind a single
      * unlock call-to-action: the settings stay visible so the buyer can see
@@ -65,6 +67,7 @@ const BotShell = ({
     strategySlot,
     extraSlot,
     lockedSlot,
+    symbolLocked,
     lockOverlay,
     footnote,
     engine,
@@ -147,7 +150,7 @@ const BotShell = ({
                                 <span className='label'>Market</span>
                                 <select
                                     value={symbol}
-                                    disabled={isRunning}
+                                    disabled={isRunning || symbolLocked}
                                     onChange={e => onSymbol(e.target.value)}
                                     className='field'
                                 >

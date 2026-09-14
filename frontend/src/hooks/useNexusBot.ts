@@ -31,6 +31,16 @@ import {
     type BuyResult,
 } from '@/services/trade-api';
 import { tickFeed, type TickMessage } from '@/services/tick-feed';
+import {
+    chooseSmartAiRound,
+    freshSmartAiState,
+    markSmartAiPlaced,
+    nextSmartAiStake,
+    settleSmartAiRound,
+    wouldBreachMaxLoss,
+    SMART_AI_MARKETS,
+    type SmartAiRound,
+} from '@/utils/smart-ai';
 import type { Subscription } from '@/services/trade-ws';
 import { useAuthOptional } from '@/context/AuthContext';
 import { useAdminOptional } from '@/context/AdminContext';
@@ -193,6 +203,12 @@ export interface NexusSignal {
     strength: number;
     /** Every contract this signal buys. One entry for all but combo strategies. */
     legs: TradeLeg[];
+    /** Market to trade. Falls back to the configured symbol when omitted. */
+    symbol?: string;
+    /** Stake per leg, overriding the risk profile's martingale when set. */
+    stake?: number;
+    /** Set on a Smart AI round, which owns its own market, stake and recovery. */
+    smart?: SmartAiRound;
 }
 
 export interface DigitStat {
@@ -539,10 +555,10 @@ const proSignal = (strategy: NexusPro, quotes: number[], decimals: number, risk:
 /** Pick the signal a non-Pro, non-combo strategy would act on right now. */
 const selectSignal = (
     sigs: Record<NexusFamily, NexusSignal>,
-    strategy: NexusFamily | NexusMeta,
+    strategy: NexusFamily | 'mix',
     families: NexusFamily[]
 ): NexusSignal => {
-    if (strategy === 'mix' || strategy === 'smart_ai') {
+    if (strategy === 'mix') {
         const pool = families.length ? families : DEFAULT_FAMILIES;
         return pool.map(f => sigs[f]).reduce((a, b) => (b.strength > a.strength ? b : a));
     }
@@ -576,6 +592,10 @@ export const selectTradeSignal = (
     forcing: boolean,
     mix: MixCursor
 ): NexusSignal | null => {
+    // Smart AI owns its market, its stake and its recovery ladder, so the hook
+    // builds its round directly and never routes it through here.
+    if (strategy === 'smart_ai') return null;
+
     if (isProStrategy(strategy)) {
         const s = proSignal(strategy, quotes, decimals, risk);
         return s && (s.passes || forcing) ? s : null;
@@ -588,16 +608,6 @@ export const selectTradeSignal = (
 
     const sigs = evaluateFamilies(quotes, decimals, risk);
     const fams = families.length ? families : DEFAULT_FAMILIES;
-
-    if (strategy === 'smart_ai') {
-        // The highest-edge family that clears its gate — or, once forcing,
-        // simply the highest-edge family.
-        const pool = fams.map(f => sigs[f]);
-        const passing = pool.filter(x => x.passes);
-        const candidates = passing.length ? passing : forcing ? pool : [];
-        if (!candidates.length) return null;
-        return candidates.reduce((a, b) => (b.strength > a.strength ? b : a));
-    }
 
     if (strategy === 'mix') {
         // Round-robin so the split stays balanced; if the family whose turn it
@@ -625,9 +635,14 @@ export const selectTradeSignal = (
     return s.passes || forcing ? s : null;
 };
 
-/** The signal the current config would act on right now (for the live display). */
+/**
+ * The signal the current config would act on right now (for the live display).
+ * Smart AI is not one of them: it scans its own markets rather than modelling
+ * the selected one, so the hook builds its display signal from the round it
+ * would place instead.
+ */
 const currentSignal = (
-    strategy: NexusStrategy,
+    strategy: Exclude<NexusStrategy, 'smart_ai'>,
     quotes: number[],
     decimals: number,
     risk: RiskLevel,
@@ -637,6 +652,37 @@ const currentSignal = (
     if (isComboStrategy(strategy)) return over2Under7Signal(quotes, decimals, risk);
     return selectSignal(evaluateFamilies(quotes, decimals, risk), strategy, families);
 };
+
+/**
+ * Presents a Smart AI round the way the rest of the hook expects a signal.
+ *
+ * Smart AI does not model the market it trades: Under 8 and Over 1 are 80%
+ * contracts and an Even is 50% whatever the last few hundred ticks did, so the
+ * confidence shown is the real probability rather than a model output.
+ */
+const smartSignalOf = (round: SmartAiRound): NexusSignal => ({
+    family: 'smart_ai',
+    label: round.label,
+    predictionText: round.isRecovery
+        ? 'Recovering — last digit even'
+        : round.contract_type === 'DIGITUNDER'
+          ? 'Last digit under 8'
+          : 'Last digit over 1',
+    conf: round.isRecovery ? 0.5 : 0.8,
+    passes: true,
+    strength: 1,
+    legs: [
+        {
+            contract_type: round.contract_type,
+            label: round.label,
+            barrier: round.barrier,
+            duration: 1,
+        },
+    ],
+    symbol: round.symbol,
+    stake: round.stake,
+    smart: round,
+});
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const clampBulk = (n?: number): number => Math.min(MAX_BULK, Math.max(1, Math.floor(n ?? 1) || 1));
@@ -681,6 +727,10 @@ export const useNexusBot = (config: NexusConfig) => {
     const [nextStake, setNextStake] = useState(config.stake);
 
     const quotesRef = useRef<number[]>([]);
+    // Smart AI ranks several markets against each other, so it keeps a price
+    // window per symbol rather than the single one the family models read.
+    const windowsRef = useRef<Record<string, number[]>>({});
+    const smartRef = useRef(freshSmartAiState());
     const decimalsRef = useRef(2);
     const cfgRef = useRef(config);
     cfgRef.current = config;
@@ -777,7 +827,12 @@ export const useNexusBot = (config: NexusConfig) => {
         });
 
         const cfg = cfgRef.current;
-        setSignal(currentSignal(cfg.strategy, q, dec, cfg.risk, cfg.families ?? DEFAULT_FAMILIES));
+        if (cfg.strategy === 'smart_ai') {
+            const round = chooseSmartAiRound(windowsRef.current, smartRef.current, cfg.stake);
+            setSignal(round ? smartSignalOf(round) : null);
+        } else {
+            setSignal(currentSignal(cfg.strategy, q, dec, cfg.risk, cfg.families ?? DEFAULT_FAMILIES));
+        }
     }, []);
 
     /** Called once per round, after every leg has closed. */
@@ -801,7 +856,12 @@ export const useNexusBot = (config: NexusConfig) => {
             setStats({ ...s });
 
             stepRef.current = won ? 0 : stepRef.current + 1;
-            setNextStake(stakeForStep(cfgRef.current, stepRef.current));
+            if (sig.smart) {
+                settleSmartAiRound(smartRef.current, sig.smart, profit);
+                setNextStake(nextSmartAiStake(smartRef.current, cfgRef.current.stake));
+            } else {
+                setNextStake(stakeForStep(cfgRef.current, stepRef.current));
+            }
 
             pushJournal({
                 result: won ? 'win' : 'loss',
@@ -843,7 +903,11 @@ export const useNexusBot = (config: NexusConfig) => {
             inFlightRef.current = true;
             const cfg = cfgRef.current;
             const bulk = clampBulk(cfg.bulkSize);
-            const stake = stakeForStep(cfg, stepRef.current);
+            // Smart AI sizes itself — flat for the rotation, doubling up the
+            // recovery ladder — so the risk profile's martingale does not apply,
+            // and it names the market its scan chose rather than the selected one.
+            const stake = sig.stake ?? stakeForStep(cfg, stepRef.current);
+            const symbol = sig.symbol ?? cfg.symbol;
 
             // Bulk repeats the whole plan, so a combo keeps its legs paired.
             const legs: TradeLeg[] = [];
@@ -861,6 +925,7 @@ export const useNexusBot = (config: NexusConfig) => {
             // ── Admin fake-trade path: simulate outcomes, place no real order ──
             const adminCtx = adminRef.current;
             if (adminCtx?.active) {
+                if (sig.smart) markSmartAiPlaced(smartRef.current, sig.smart);
                 let simSettled = 0;
                 let simProfit = 0;
                 const simFinish = (profit: number) => {
@@ -874,7 +939,7 @@ export const useNexusBot = (config: NexusConfig) => {
                     // Deriv would. A failed lookup falls back to the static table.
                     const payout = await getProposalPayout({
                         contract_type: leg.contract_type,
-                        symbol: cfg.symbol,
+                        symbol,
                         amount: stake,
                         duration: leg.duration,
                         duration_unit: 't',
@@ -897,8 +962,8 @@ export const useNexusBot = (config: NexusConfig) => {
                     portfolioRef.current?.addAdminPosition({
                         contract_id: contractId,
                         contract_type: leg.contract_type,
-                        display_name: symbolDisplayName(cfg.symbol),
-                        underlying: cfg.symbol,
+                        display_name: symbolDisplayName(symbol),
+                        underlying: symbol,
                         buy_price: stake,
                         bid_price: round2(Math.max(0, stake + finalProfit)),
                         profit: finalProfit,
@@ -921,7 +986,7 @@ export const useNexusBot = (config: NexusConfig) => {
                 legs.map(leg =>
                     buyWithParameters({
                         contract_type: leg.contract_type,
-                        symbol: cfg.symbol,
+                        symbol,
                         amount: stake,
                         duration: leg.duration,
                         duration_unit: 't',
@@ -953,6 +1018,8 @@ export const useNexusBot = (config: NexusConfig) => {
                 });
             }
 
+            if (sig.smart) markSmartAiPlaced(smartRef.current, sig.smart);
+
             const liveLegs = bought.length;
             let settled = 0;
             let roundProfit = 0;
@@ -982,6 +1049,22 @@ export const useNexusBot = (config: NexusConfig) => {
         if (q.length < 18) return; // warm-up window
 
         const cfg = cfgRef.current;
+
+        // Smart AI picks its own market and stake and never consults the family
+        // models, so it is routed out before they are evaluated. A null round means
+        // nothing is streaming yet, or a fresh ladder is still waiting for its two
+        // odd digits — either way, hold and look again on the next tick.
+        if (cfg.strategy === 'smart_ai') {
+            const round = chooseSmartAiRound(windowsRef.current, smartRef.current, cfg.stake);
+            if (!round) return;
+            if (wouldBreachMaxLoss(netRef.current, cfg.maxLoss, round)) {
+                stopInternal('maxloss');
+                return;
+            }
+            void placeRound(smartSignalOf(round));
+            return;
+        }
+
         if (!scanStartedRef.current) scanStartedRef.current = Date.now();
         const forcing = Date.now() - scanStartedRef.current >= FORCE_ENTRY_AFTER_MS;
 
@@ -1000,7 +1083,7 @@ export const useNexusBot = (config: NexusConfig) => {
         // cannot immediately re-arm the forced entry.
         scanStartedRef.current = 0;
         void placeRound(pick);
-    }, [placeRound]);
+    }, [placeRound, stopInternal]);
 
     const handleTick = useCallback(
         (msg: TickMessage) => {
@@ -1060,6 +1143,45 @@ export const useNexusBot = (config: NexusConfig) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config.symbol]);
 
+    /**
+     * Smart AI ranks five markets against each other, so it needs all five
+     * streaming rather than just the selected one. The feed is multiplexed per
+     * symbol, so asking for one the bot is already watching costs nothing.
+     */
+    const isSmart = config.strategy === 'smart_ai';
+    useEffect(() => {
+        if (!isSmart) return;
+        let active = true;
+        const subs: Subscription[] = [];
+
+        (async () => {
+            for (const symbol of SMART_AI_MARKETS) {
+                try {
+                    const sub = await tickFeed.subscribe(symbol, (msg: TickMessage) => {
+                        if (msg?.history?.prices) {
+                            windowsRef.current[symbol] = msg.history.prices.map(Number).slice(-500);
+                        } else if (msg?.tick?.quote != null) {
+                            const window = (windowsRef.current[symbol] ??= []);
+                            window.push(Number(msg.tick.quote));
+                            if (window.length > 600) window.shift();
+                        }
+                    });
+                    if (!active) sub.forget();
+                    else subs.push(sub);
+                } catch {
+                    // One market failing to open is survivable: the scan only
+                    // considers markets that are actually streaming.
+                }
+            }
+        })();
+
+        return () => {
+            active = false;
+            subs.forEach(sub => sub.forget());
+            windowsRef.current = {};
+        };
+    }, [isSmart]);
+
     // Keep the displayed next stake in step with the configured base stake while
     // the bot is idle (the martingale owns it once a session is running).
     useEffect(() => {
@@ -1081,6 +1203,7 @@ export const useNexusBot = (config: NexusConfig) => {
         stepRef.current = 0;
         lossStreakRef.current = 0;
         mixRef.current = { turn: 0, quiet: 0 };
+        smartRef.current = freshSmartAiState();
         inFlightRef.current = false;
         scanStartedRef.current = Date.now();
         statsRef.current = { ...EMPTY_STATS };
