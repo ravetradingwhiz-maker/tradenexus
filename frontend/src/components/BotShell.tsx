@@ -7,6 +7,14 @@ import { NumberField, Segmented } from '@/components/Field';
 
 type Engine = ReturnType<typeof useNexusBot>;
 
+/**
+ * Stands in for a market while the strategy is choosing its own, so the picker
+ * says what is happening instead of naming a market that is not being traded.
+ * Only ever rendered on a disabled select, so it can never be selected.
+ */
+const AUTO_MARKET = '__auto';
+const AUTO_MARKET_LABEL = 'Smart AI will auto select the best';
+
 const RISKS: { id: RiskLevel; label: string; desc: string }[] = [
     { id: 'low', label: 'Low', desc: 'Selective' },
     { id: 'medium', label: 'Medium', desc: 'Balanced' },
@@ -149,11 +157,16 @@ const BotShell = ({
                             <label className='flex flex-col gap-1.5'>
                                 <span className='label'>Market</span>
                                 <select
-                                    value={symbol}
+                                    value={symbolLocked ? AUTO_MARKET : symbol}
                                     disabled={isRunning || symbolLocked}
                                     onChange={e => onSymbol(e.target.value)}
                                     className='field'
                                 >
+                                    {symbolLocked && (
+                                        <option value={AUTO_MARKET} className='bg-ink-700'>
+                                            {AUTO_MARKET_LABEL}
+                                        </option>
+                                    )}
                                     {BOT_MARKETS.map(m => (
                                         <option key={m.symbol} value={m.symbol} className='bg-ink-700'>
                                             {m.name}
