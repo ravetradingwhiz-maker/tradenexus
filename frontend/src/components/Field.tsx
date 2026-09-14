@@ -45,6 +45,12 @@ export interface SegmentedOption<T extends string> {
     label: string;
     icon?: LucideIcon;
     desc?: string;
+    /**
+     * Marks the tile to point people at: a green border and a tag in the
+     * corner. Kept separate from `active` so the recommendation reads the same
+     * before and after it is picked.
+     */
+    recommended?: boolean;
 }
 
 /**
@@ -79,12 +85,21 @@ export const Segmented = <T extends string>({
                     aria-checked={active}
                     disabled={disabled}
                     onClick={() => onChange(opt.id)}
-                    className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
-                        active
-                            ? 'border-fg bg-fg text-on-fg'
-                            : 'border-line bg-ink-700 text-mist-300 hover:border-line-strong hover:text-fg'
+                    className={`relative flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                        active ? 'bg-fg text-on-fg' : 'bg-ink-700 text-mist-300 hover:text-fg'
+                    } ${
+                        opt.recommended
+                            ? 'border-gain'
+                            : active
+                              ? 'border-fg'
+                              : 'border-line hover:border-line-strong'
                     }`}
                 >
+                    {opt.recommended && (
+                        <span className='absolute -top-[7px] right-[-1px] rounded-[4px_4px_0_4px] bg-gain px-1.5 py-px text-[9px] font-bold leading-[1.5] text-on-fg'>
+                            Recommended
+                        </span>
+                    )}
                     {Icon && <Icon size={16} />}
                     <span className='text-xs font-bold leading-tight'>{opt.label}</span>
                     {opt.desc && (

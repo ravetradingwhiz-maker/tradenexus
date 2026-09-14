@@ -31,7 +31,7 @@ const STRATEGIES: SegmentedOption<NexusStrategy>[] = [
     { id: 'differs', label: 'Differs', icon: Dices, desc: 'Differs only' },
     { id: 'over2_under7', label: 'Over 2 + Under 7', icon: Layers, desc: 'Simultaneous' },
     { id: 'mix', label: 'Mix', icon: Shuffle, desc: 'Round-robin' },
-    { id: 'smart_ai', label: 'Smart AI', icon: Brain, desc: 'Best edge' },
+    { id: 'smart_ai', label: 'Smart AI', icon: Brain, desc: 'Best edge', recommended: true },
 ];
 
 /**
