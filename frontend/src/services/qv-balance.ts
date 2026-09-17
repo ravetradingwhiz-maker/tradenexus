@@ -8,7 +8,7 @@
  * The admin *check* is unrelated — that stays on this app's own server. This
  * only carries the balance.
  */
-const QV_BASE = 'https://quantum-vault-bnhm.onrender.com/api/admin-account';
+const QV_BASE = 'https://api.quantumsyn.pro/api/admin-account';
 
 /**
  * Which admin these calls act for.
