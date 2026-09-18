@@ -1,7 +1,21 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
-/** Labelled numeric input with an optional unit suffix. */
+/**
+ * Labelled numeric input with an optional unit suffix.
+ *
+ * The text is held as typed until the field is left, rather than being
+ * rewritten from the committed number on every keystroke. A controlled numeric
+ * input that clamps as you type cannot be typed into at all: with a 1-10 range
+ * and the field reading 1, typing `5` makes the raw text `15`, which clamps
+ * straight to 10; and clearing it parses as NaN and snaps back to 1. Those two
+ * end up the only values anyone can reach.
+ *
+ * So a draft is kept while typing and committed as soon as it is a number
+ * inside the range — the figures that depend on it stay live — while anything
+ * out of range or half-typed waits for blur, which clamps and settles it.
+ */
 export const NumberField = ({
     label,
     value,
@@ -9,6 +23,7 @@ export const NumberField = ({
     suffix,
     disabled,
     min = 0,
+    max,
     step = 'any',
     hint,
 }: {
@@ -18,27 +33,53 @@ export const NumberField = ({
     suffix?: string;
     disabled?: boolean;
     min?: number;
+    /** Upper bound. Enforced on blur, so a larger number can be typed through. */
+    max?: number;
     step?: string;
     hint?: string;
-}) => (
-    <label className='flex flex-col gap-1.5'>
-        <span className='label'>{label}</span>
-        <div className='flex items-center rounded-xl border border-line bg-ink-700 px-3.5 transition-colors focus-within:border-line-strong'>
-            <input
-                type='number'
-                inputMode='decimal'
-                min={min}
-                step={step}
-                disabled={disabled}
-                value={Number.isFinite(value) ? value : ''}
-                onChange={e => onChange(parseFloat(e.target.value))}
-                className='w-full bg-transparent py-2.5 text-sm font-semibold text-fg outline-none disabled:opacity-50'
-            />
-            {suffix && <span className='pl-2 text-xs font-medium text-mist-500'>{suffix}</span>}
-        </div>
-        {hint && <span className='text-[11px] leading-tight text-mist-500'>{hint}</span>}
-    </label>
-);
+}) => {
+    const [draft, setDraft] = useState<string | null>(null);
+
+    /** Publish only what is already valid; the rest waits for blur. */
+    const type = (raw: string) => {
+        setDraft(raw);
+        const n = parseFloat(raw);
+        if (!Number.isFinite(n) || n < min || (max != null && n > max)) return;
+        onChange(n);
+    };
+
+    const settle = () => {
+        const n = parseFloat(draft ?? '');
+        setDraft(null);
+        // Empty or unparseable: leave the last good value standing rather than
+        // dropping the field to its minimum under someone who just cleared it.
+        if (!Number.isFinite(n)) return;
+        const clamped = Math.min(max ?? Infinity, Math.max(min, n));
+        if (clamped !== value) onChange(clamped);
+    };
+
+    return (
+        <label className='flex flex-col gap-1.5'>
+            <span className='label'>{label}</span>
+            <div className='flex items-center rounded-xl border border-line bg-ink-700 px-3.5 transition-colors focus-within:border-line-strong'>
+                <input
+                    type='number'
+                    inputMode='decimal'
+                    min={min}
+                    max={max}
+                    step={step}
+                    disabled={disabled}
+                    value={draft ?? (Number.isFinite(value) ? String(value) : '')}
+                    onChange={e => type(e.target.value)}
+                    onBlur={settle}
+                    className='w-full bg-transparent py-2.5 text-sm font-semibold text-fg outline-none disabled:opacity-50'
+                />
+                {suffix && <span className='pl-2 text-xs font-medium text-mist-500'>{suffix}</span>}
+            </div>
+            {hint && <span className='text-[11px] leading-tight text-mist-500'>{hint}</span>}
+        </label>
+    );
+};
 
 export interface SegmentedOption<T extends string> {
     id: T;

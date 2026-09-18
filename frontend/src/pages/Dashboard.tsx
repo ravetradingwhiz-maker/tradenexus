@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import { Crown } from 'lucide-react';
-import PositionsPanel from '@/components/PositionsPanel';
 import PricingPlans from '@/components/PricingPlans';
 import BasicBot from '@/pages/bots/BasicBot';
 import RecoveryBot from '@/pages/bots/RecoveryBot';
@@ -45,8 +44,8 @@ const Dashboard = () => {
                                     {activeAccount?.is_demo ? 'Demo account' : 'Real account'} 
                                 </h1>
                                 <p className='mt-1.5 max-w-lg text-sm text-mist-400'>
-                                    Pick a bot, set your limits, hit run. Every trade shows up in Positions below as it
-                                    happens.
+                                    Pick a bot, set your limits, hit run. Every trade shows up in Transactions, on the
+                                    edge of the screen, as it happens.
                                 </p>
                             </div>
 
@@ -99,8 +98,9 @@ const Dashboard = () => {
                 <RecoveryBot />
                 <ProBot />
 
-                {/* ── Positions ───────────────────────────────────────────── */}
-                <PositionsPanel />
+                {/* Positions used to sit here as a card. They live in the
+                    transactions drawer now — global, so a run stays visible
+                    while you move around the app. */}
 
                 {/* ── Plans ───────────────────────────────────────────────── */}
                 {pro.via !== 'admin' && (

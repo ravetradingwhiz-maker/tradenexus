@@ -5,6 +5,7 @@ import BotShell from '@/components/BotShell';
 import BotResultModal from '@/components/BotResultModal';
 import { NumberField, Segmented, type SegmentedOption } from '@/components/Field';
 import { useAuth } from '@/context/AuthContext';
+import { usePublishBotRun } from '@/context/BotRunContext';
 import { useProAccess } from '@/hooks/useProAccess';
 import { getActiveCurrency } from '@/services/trade-api';
 import { getPlan, type Plan } from '@/services/payments-api';
@@ -74,6 +75,9 @@ const ProBot = () => {
     const engine = useNexusBot(config);
     const { isRunning, stop } = engine;
 
+    // Lets the global transactions panel offer a Stop while this run is going.
+    usePublishBotRun(isRunning, stop);
+
     const subscribed = pro.hasPro;
     const demoLocked = isDemo && !ALLOW_DEMO_TRADING;
     const locked = !subscribed || demoLocked;
@@ -138,6 +142,7 @@ const ProBot = () => {
                             onChange={v => setBulkSize(Math.min(MAX_BULK, Math.max(1, Math.floor(v) || 1)))}
                             suffix={`/ ${MAX_BULK}`}
                             min={1}
+                            max={MAX_BULK}
                             step='1'
                             disabled={engine.isRunning}
                             hint={`Round costs ${(stake * bulkSize).toFixed(2)} ${currency}`}

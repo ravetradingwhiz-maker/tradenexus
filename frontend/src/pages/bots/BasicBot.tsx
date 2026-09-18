@@ -4,6 +4,7 @@ import BotShell from '@/components/BotShell';
 import BotResultModal from '@/components/BotResultModal';
 import { NumberField, Segmented, type SegmentedOption } from '@/components/Field';
 import { useAuth } from '@/context/AuthContext';
+import { usePublishBotRun } from '@/context/BotRunContext';
 import { getActiveCurrency } from '@/services/trade-api';
 import { DEFAULT_MARKET } from '@/constants/markets';
 import SITE from '@/config/site';
@@ -70,6 +71,9 @@ const BasicBot = () => {
     const demoLocked = isDemo && !ALLOW_DEMO_TRADING;
     const { isRunning, stop } = engine;
 
+    // Lets the global transactions panel offer a Stop while this run is going.
+    usePublishBotRun(isRunning, stop);
+
     // If the account is switched to a blocked demo mid-run, stop immediately.
     useEffect(() => {
         if (demoLocked && isRunning) stop();
@@ -130,6 +134,7 @@ const BasicBot = () => {
                                 onChange={v => setBulkSize(Math.min(MAX_BULK, Math.max(1, Math.floor(v) || 1)))}
                                 suffix={`/ ${MAX_BULK}`}
                                 min={1}
+                                max={MAX_BULK}
                                 step='1'
                                 disabled={engine.isRunning}
                                 hint={`Contracts per signal · ${legsPerRound} per round`}

@@ -15,3 +15,26 @@ export const shortDate = (value: string | number | Date): string =>
 
 export const shortTime = (unixSeconds: number): string =>
     new Date(unixSeconds * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+/** Deriv's contract codes as the words people use for them. */
+const TYPE_LABEL: Record<string, string> = {
+    CALL: 'Rise',
+    PUT: 'Fall',
+    CALLE: 'Rise',
+    PUTE: 'Fall',
+    HIGHER: 'Higher',
+    LOWER: 'Lower',
+    DIGITEVEN: 'Even',
+    DIGITODD: 'Odd',
+    DIGITOVER: 'Over',
+    DIGITUNDER: 'Under',
+    DIGITMATCH: 'Matches',
+    DIGITDIFF: 'Differs',
+    ONETOUCH: 'Touch',
+    NOTOUCH: 'No Touch',
+    EXPIRYMISS: 'Ends Outside',
+    EXPIRYRANGE: 'Ends Between',
+};
+
+/** Falls back to the raw code, so an unmapped type still says something. */
+export const contractTypeLabel = (t?: string): string => (t && TYPE_LABEL[t.toUpperCase()]) || t || '—';

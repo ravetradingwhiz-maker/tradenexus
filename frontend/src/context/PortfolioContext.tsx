@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { subscribePortfolio } from '@/services/trade-api';
 import type { Subscription } from '@/services/trade-ws';
@@ -28,11 +28,30 @@ export interface ClosedTrade {
     time: number;
 }
 
+/**
+ * The panel's six figures, over the trades that have closed this session.
+ *
+ * Derived from `history` rather than counted as trades settle, so it can never
+ * drift from the list it describes — and Reset, which just empties `history`,
+ * zeroes the statistics for free.
+ */
+export interface SessionStats {
+    /** Closed contracts — what the panel calls "No. of runs". */
+    runs: number;
+    won: number;
+    lost: number;
+    totalStake: number;
+    totalPayout: number;
+    totalProfit: number;
+}
+
 interface PortfolioContextValue {
     /** Live open contracts for the active account (any source: manual or bot). */
     openPositions: OpenPosition[];
     /** Trades that have closed this session (in-memory; cleared on reload). */
     history: ClosedTrade[];
+    /** Session totals over `history`, for the transactions panel. */
+    sessionStats: SessionStats;
     clearHistory: () => void;
     /** Admin (fake-trade) mode: inject a simulated open position so it shows live. */
     addAdminPosition: (pos: OpenPosition) => void;
@@ -157,11 +176,47 @@ export const PortfolioProvider = ({ children }: { children: ReactNode }) => {
 
     const openPositions = Object.values(positions).sort((a, b) => (b.purchase_time ?? 0) - (a.purchase_time ?? 0));
 
+    const sessionStats = useMemo<SessionStats>(() => {
+        let won = 0;
+        let lost = 0;
+        let totalStake = 0;
+        let totalPayout = 0;
+        let totalProfit = 0;
+
+        for (const trade of history) {
+            const profit = Number(trade.profit) || 0;
+            const stake = Number(trade.buy_price) || 0;
+            totalStake += stake;
+            totalProfit += profit;
+            // `>= 0` counts as a win, matching the bot engine and the trade rows.
+            // A loser pays nothing, so only a winner adds to the payout.
+            if (profit >= 0) {
+                won += 1;
+                totalPayout += stake + profit;
+            } else {
+                lost += 1;
+            }
+        }
+
+        // Summed floats drift; these are money, so they are rounded once here
+        // rather than at each of the six places they are displayed.
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        return {
+            runs: history.length,
+            won,
+            lost,
+            totalStake: round2(totalStake),
+            totalPayout: round2(totalPayout),
+            totalProfit: round2(totalProfit),
+        };
+    }, [history]);
+
     return (
         <PortfolioContext.Provider
             value={{
                 openPositions,
                 history,
+                sessionStats,
                 clearHistory,
                 addAdminPosition,
                 settleAdminPosition,
