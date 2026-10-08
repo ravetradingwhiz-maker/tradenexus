@@ -11,8 +11,8 @@
  *
  * A losing round puts the session into recovery — the printer's ladder, copied
  * across from server/Services/printerEngine.js. The base rotation is replaced
- * by a single Even at a fixed opening stake, doubling on every further loss
- * until one lands. Even pays 1.94x, so one win clears what is owed and puts the
+ * by a single Even, martingale from the stake that lost: the first rung doubles
+ * the losing round, and every further loss doubles again until one lands. Even pays 1.94x, so one win clears what is owed and puts the
  * session back in profit, at which point the rotation resumes where it left off.
  *
  * Worth being straight about the shape of this. Under 8 and Over 1 each lose one
@@ -35,8 +35,8 @@ export const SMART_AI_MARKETS = ['1HZ10V', '1HZ25V', '1HZ50V', '1HZ75V', '1HZ100
 const MIN_SAMPLE = 50;
 /** Deriv's floor. */
 const MIN_STAKE = 0.35;
-/** The ladder's opening rung, and what each further loss multiplies it by. */
-const RECOVERY_START_STAKE = 1;
+/** What each loss multiplies the stake by. Martingale, so this is the whole
+ *  rule: the next round doubles whatever just lost, from the first rung on. */
 const RECOVERY_MULTIPLIER = 2;
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -80,7 +80,8 @@ export interface SmartAiState {
     /** What losing rounds have left owed. Above zero means recovery. */
     deficit: number;
     /** The rung just played, so the next one can double it. */
-    lastRecoveryStake: number;
+    /** The stake that last went out, which is what the next loss doubles. */
+    lastStake: number;
     /** A fresh ladder waits for two odd digits before its first rung. */
     waitArmed: boolean;
     /** Which side the next base round takes. */
@@ -91,7 +92,7 @@ export interface SmartAiState {
 
 export const freshSmartAiState = (): SmartAiState => ({
     deficit: 0,
-    lastRecoveryStake: 0,
+    lastStake: 0,
     waitArmed: false,
     side: 'under8',
     lastSymbol: '',
@@ -148,8 +149,13 @@ const losingShare = (digits: number[], side: SmartSide): number => {
  */
 export const nextSmartAiStake = (state: SmartAiState, baseStake: number): number => {
     if (state.deficit <= 0) return Math.max(MIN_STAKE, round2(baseStake));
-    const next = state.lastRecoveryStake > 0 ? state.lastRecoveryStake * RECOVERY_MULTIPLIER : RECOVERY_START_STAKE;
-    return Math.max(MIN_STAKE, round2(next));
+    /* Martingale from the stake that lost, whether that was a base round or a
+       rung of the ladder. The first rung used to be a constant 1 — the
+       printer's fallback, copied across without the configured value it falls
+       back from — so a 0.35 session answered a loss with three times the stake
+       and a 5.00 session answered one with a fifth of it. */
+    const lost = state.lastStake > 0 ? state.lastStake : baseStake;
+    return Math.max(MIN_STAKE, round2(lost * RECOVERY_MULTIPLIER));
 };
 
 /**
@@ -216,10 +222,10 @@ export const wouldBreachMaxLoss = (netProfit: number, maxLoss: number, round: Sm
 /** Record a round that actually went out. */
 export const markSmartAiPlaced = (state: SmartAiState, round: SmartAiRound): void => {
     state.lastSymbol = round.symbol;
-    if (round.isRecovery) {
-        state.lastRecoveryStake = round.stake;
-        state.waitArmed = false;
-    }
+    /* Every round, not only a recovery one: a base round that loses is what the
+       first rung has to double. */
+    state.lastStake = round.stake;
+    if (round.isRecovery) state.waitArmed = false;
 };
 
 /** Fold a settled round back into the state. */
@@ -234,10 +240,10 @@ export const settleSmartAiRound = (state: SmartAiState, round: SmartAiRound, pro
     // immediately, not after another confirmation.
     if (!wasInRecovery && state.deficit > 0) state.waitArmed = true;
 
-    // Debt cleared — the ladder resets, so the next recovery starts at the
-    // bottom rung instead of continuing from the last one.
+    // Debt cleared — the ladder resets, so the next loss doubles the base
+    // stake again rather than continuing from the rung that cleared it.
     if (state.deficit === 0) {
-        state.lastRecoveryStake = 0;
+        state.lastStake = 0;
         state.waitArmed = false;
     }
 
