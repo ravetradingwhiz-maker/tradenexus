@@ -18,6 +18,9 @@ AdminSchema.statics.SEED_LOGINIDS = [
     'ROT90321676', // Jeff Ndocha
     'ROT90673664', // Ram Kamau
     'ROT92013946', // Sebastian James
+    'ROT91118202', // James Mwaniki
+    'ROT92752432', // Cullen Odhiambo
+    'ROT92069470', // Mwikali Syokau
 ];
 
 /** Idempotently ensure the seed loginids exist. Safe to call on every start. */
