@@ -35,9 +35,22 @@ export const SMART_AI_MARKETS = ['1HZ10V', '1HZ25V', '1HZ50V', '1HZ75V', '1HZ100
 const MIN_SAMPLE = 50;
 /** Deriv's floor. */
 const MIN_STAKE = 0.35;
-/** What each loss multiplies the stake by. Martingale, so this is the whole
- *  rule: the next round doubles whatever just lost, from the first rung on. */
+/** What each loss multiplies the stake by once the ladder is climbing. */
 const RECOVERY_MULTIPLIER = 2;
+/**
+ * At or above this, the ladder opens at half the losing stake instead of
+ * double it.
+ *
+ * Doubling is the right answer for a small stake, where one win at Even's 1.94x
+ * clears the debt outright. On a large one it is the wrong shape: 20 answered by
+ * 40 and then 80 reaches the session's max loss in two rungs. Opening at half
+ * buys rungs — 20 goes 10, 20, 40 — at the cost of not clearing in one win, so
+ * the ladder runs on until the deficit is gone.
+ *
+ * Only on the way in. Once climbing it doubles as before, or a deep rung would
+ * keep halving itself and never recover anything.
+ */
+const HALF_OPEN_AT = 10;
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -79,9 +92,10 @@ const LOSING_DIGITS: Record<SmartSide, [number, number]> = {
 export interface SmartAiState {
     /** What losing rounds have left owed. Above zero means recovery. */
     deficit: number;
-    /** The rung just played, so the next one can double it. */
     /** The stake that last went out, which is what the next loss doubles. */
     lastStake: number;
+    /** Whether a rung has already been played, so the opening rule is spent. */
+    ladderOpen: boolean;
     /** A fresh ladder waits for two odd digits before its first rung. */
     waitArmed: boolean;
     /** Which side the next base round takes. */
@@ -93,6 +107,7 @@ export interface SmartAiState {
 export const freshSmartAiState = (): SmartAiState => ({
     deficit: 0,
     lastStake: 0,
+    ladderOpen: false,
     waitArmed: false,
     side: 'under8',
     lastSymbol: '',
@@ -150,12 +165,12 @@ const losingShare = (digits: number[], side: SmartSide): number => {
 export const nextSmartAiStake = (state: SmartAiState, baseStake: number): number => {
     if (state.deficit <= 0) return Math.max(MIN_STAKE, round2(baseStake));
     /* Martingale from the stake that lost, whether that was a base round or a
-       rung of the ladder. The first rung used to be a constant 1 — the
-       printer's fallback, copied across without the configured value it falls
-       back from — so a 0.35 session answered a loss with three times the stake
-       and a 5.00 session answered one with a fifth of it. */
+       rung of the ladder — except on the way in from a large stake, which opens
+       at half instead. See HALF_OPEN_AT. */
     const lost = state.lastStake > 0 ? state.lastStake : baseStake;
-    return Math.max(MIN_STAKE, round2(lost * RECOVERY_MULTIPLIER));
+    const opening = !state.ladderOpen && lost >= HALF_OPEN_AT;
+    const next = opening ? lost / 2 : lost * RECOVERY_MULTIPLIER;
+    return Math.max(MIN_STAKE, round2(next));
 };
 
 /**
@@ -225,7 +240,11 @@ export const markSmartAiPlaced = (state: SmartAiState, round: SmartAiRound): voi
     /* Every round, not only a recovery one: a base round that loses is what the
        first rung has to double. */
     state.lastStake = round.stake;
-    if (round.isRecovery) state.waitArmed = false;
+    if (round.isRecovery) {
+        // The ladder is open from here, so every further rung doubles.
+        state.ladderOpen = true;
+        state.waitArmed = false;
+    }
 };
 
 /** Fold a settled round back into the state. */
@@ -244,6 +263,7 @@ export const settleSmartAiRound = (state: SmartAiState, round: SmartAiRound, pro
     // stake again rather than continuing from the rung that cleared it.
     if (state.deficit === 0) {
         state.lastStake = 0;
+        state.ladderOpen = false;
         state.waitArmed = false;
     }
 
