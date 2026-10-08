@@ -3,7 +3,7 @@ import { ListChecks, Loader2, RotateCcw, Square, X } from 'lucide-react';
 import { LabelPairedChevronsRightCaptionRegularIcon } from '@deriv/quill-icons/LabelPaired';
 import { LegacyHandleLessIcon } from '@deriv/quill-icons/Legacy';
 import { useAuth } from '@/context/AuthContext';
-import { usePortfolio, type ClosedTrade, type OpenPosition } from '@/context/PortfolioContext';
+import { marketNameOf, usePortfolio, type ClosedTrade, type OpenPosition } from '@/context/PortfolioContext';
 import { useBotRun } from '@/context/BotRunContext';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { getActiveCurrency, sellContract } from '@/services/trade-api';
@@ -57,7 +57,7 @@ interface Row {
 const openRow = (p: OpenPosition): Row => ({
     contract_id: p.contract_id,
     contract_type: p.contract_type,
-    market: p.display_name || p.underlying || '—',
+    market: marketNameOf(p),
     stake: Number(p.buy_price) || 0,
     profit: Number(p.profit) || 0,
     value: Number(p.bid_price) || 0,

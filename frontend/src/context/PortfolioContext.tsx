@@ -4,11 +4,38 @@ import { subscribePortfolio } from '@/services/trade-api';
 import type { Subscription } from '@/services/trade-ws';
 import { useAuth } from '@/context/AuthContext';
 
+import { FALLBACK_SYMBOLS } from '@/constants/symbols';
+
+/**
+ * The market a contract names, however the payload spells it.
+ *
+ * `proposal_open_contract` carries `underlying_symbol` — not `underlying`, and
+ * not `display_name`, which it has never sent. Reading only the two old names
+ * meant every real position fell through to a dash, while admin-simulated ones
+ * read correctly because the app fills those fields in itself.
+ *
+ * The symbol is resolved to its name through the same catalogue the market
+ * picker uses, and failing that shows the code: "R_50" says more than "—".
+ */
+export const marketNameOf = (c: {
+    display_name?: string;
+    underlying?: string;
+    underlying_symbol?: string;
+}): string => {
+    if (c.display_name) return c.display_name;
+    const symbol = c.underlying_symbol || c.underlying || '';
+    if (!symbol) return '—';
+    return FALLBACK_SYMBOLS.find(s => s.symbol === symbol)?.display_name ?? symbol;
+};
+
 export interface OpenPosition {
     contract_id: number;
     contract_type?: string;
     display_name?: string;
     underlying?: string;
+    /** What the API actually sends. `underlying` and `display_name` are the old
+     *  spellings, kept because the admin-simulated path fills those in. */
+    underlying_symbol?: string;
     longcode?: string;
     buy_price?: number;
     bid_price?: number;
@@ -103,7 +130,7 @@ export const PortfolioProvider = ({ children }: { children: ReactNode }) => {
                     {
                         contract_id: contractId,
                         contract_type: existing.contract_type,
-                        market: existing.display_name || existing.underlying || '—',
+                        market: marketNameOf(existing),
                         longcode: existing.longcode,
                         buy_price: Number(existing.buy_price) || 0,
                         profit,
@@ -148,7 +175,7 @@ export const PortfolioProvider = ({ children }: { children: ReactNode }) => {
                                     {
                                         contract_id: id,
                                         contract_type: poc.contract_type,
-                                        market: poc.display_name || poc.underlying || '—',
+                                        market: marketNameOf(poc),
                                         longcode: poc.longcode,
                                         buy_price: buy,
                                         profit,
