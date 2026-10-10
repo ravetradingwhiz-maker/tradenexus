@@ -73,6 +73,14 @@ const readAuthState = (): { mode: AuthMode; accounts: AuthAccount[]; activeLogin
 };
 
 /** Builds a balance map from stored REST accounts (instant, no network). */
+/**
+ * Errors that mean the token itself is no longer accepted — what switching Deriv
+ * accounts leaves behind, since logging out of one revokes its token. Anything
+ * else (a dropped socket, a timeout) is transient and must not sign anyone out.
+ */
+const DEAD_TOKEN_CODES = new Set(['InvalidToken', 'AuthorizationRequired', 'DisabledClient']);
+const isDeadToken = (err?: { code?: string } | null): boolean => !!err?.code && DEAD_TOKEN_CODES.has(err.code);
+
 const balancesFromAccounts = (accounts: DerivAccount[]): BalanceMap =>
     accounts.reduce<BalanceMap>((acc, a) => {
         acc[a.account_id] = { balance: parseFloat(a.balance) || 0, currency: a.currency };
@@ -86,6 +94,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return stored ? balancesFromAccounts(stored) : {};
     });
     const legacyStreamRef = useRef<BalanceStreamHandle | null>(null);
+    /* The balance streams are set up above `logout`, so they reach it through
+       this rather than by name — listing it as an effect dependency would read
+       it before it exists. Pointed at the real function once that is defined. */
+    const logoutRef = useRef<() => void>(() => {});
     // Set by whichever balance strategy is live, so `refreshBalances()` can
     // force an immediate update — a trade settling should not wait for a poll.
     const forceRefreshRef = useRef<(() => void) | null>(null);
@@ -117,7 +129,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             (async () => {
                 try {
                     balSub = await tradeWS.subscribe({ balance: 1 }, (msg: any) => {
-                        if (cancelled || msg?.error) return;
+                        if (cancelled) return;
+                        if (msg?.error) {
+                            // A dead token signs out; a passing error is left alone.
+                            if (isDeadToken(msg.error)) logoutRef.current();
+                            return;
+                        }
                         const b = msg?.balance;
                         if (b?.loginid) {
                             setBalances(prev => ({
@@ -194,7 +211,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             legacyStreamRef.current?.close();
             legacyStreamRef.current = streamLegacyBalances({
                 onBalances: map => setBalances(prev => ({ ...prev, ...map })),
-                onError: err => console.warn('[Auth] legacy balance stream error:', err),
+                onError: err => {
+                /* Used to warn and carry on, leaving a session that looked logged
+                   in with a token Deriv had revoked. A dead one now signs out, so
+                   the login button — which works — is what the user sees. */
+                if (isDeadToken(err)) logoutRef.current();
+                else console.warn('[Auth] legacy balance stream error:', err);
+            },
             });
         };
         openLegacyStream();
@@ -247,6 +270,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setState({ mode: null, accounts: [], activeLoginId: null });
         setBalances({});
     }, []);
+    logoutRef.current = logout;
 
     const switchAccount = useCallback((loginid: string) => {
         localStorage.setItem('active_loginid', loginid);
